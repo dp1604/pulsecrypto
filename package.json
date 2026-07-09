@@ -1,0 +1,12 @@
+{
+  "name": "pulsecrypto",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.3",
+  "description": "Foundation workspace for the PulseCrypto practical assignment.",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev:backend": "pnpm --filter @pulsecrypto/backend dev"
+  }
+}
