@@ -1,6 +1,6 @@
 # PulseCrypto Architecture Blueprint
 
-This blueprint describes the intended architecture and current implementation status. Shared contracts and the backend foundation are implemented. Binance ingestion, market snapshot broadcasting, and mobile application code have not been implemented yet.
+This blueprint describes the intended architecture and current implementation status. Shared contracts, the backend foundation, and pure backend market calculation/state/snapshot utilities are implemented. Binance ingestion, market snapshot broadcasting, and mobile application code have not been implemented yet.
 
 ## System Overview
 
@@ -18,6 +18,7 @@ Current status:
 - Backend `GET /health` exists.
 - Backend `GET /pairs/meta` exists and returns mocked metadata for supported pairs.
 - Backend WebSocket server accepts clients and sends a temporary `connection.ready` acknowledgement.
+- Backend market calculation, latest-state store, and snapshot builder utilities exist and are covered by unit tests.
 - Binance ingestion and `market.snapshot.batch` broadcasting are not implemented.
 - Mobile app code is not scaffolded.
 

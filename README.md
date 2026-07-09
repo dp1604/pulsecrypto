@@ -69,6 +69,7 @@ Current backend foundation:
 - Metadata is currently mocked and generated from shared supported-pair constants.
 - WebSocket server accepts client connections and sends a temporary `connection.ready` acknowledgement.
 - Shared TypeScript contracts define supported pairs, REST metadata, and planned market snapshot batch messages.
+- Backend market calculation, latest-state store, and snapshot builder utilities exist with unit tests.
 
 Planned backend responsibilities:
 
@@ -78,7 +79,7 @@ Planned backend responsibilities:
 - Broadcast processed WebSocket market snapshots to connected mobile clients.
 - Bound memory and connection resources under sustained update bursts.
 
-Binance integration and market snapshot broadcasting do not exist yet.
+Binance integration and market snapshot broadcasting do not exist yet. Market-state utilities are not wired to an external stream or WebSocket broadcaster yet.
 
 ## Stream processing and backpressure
 
@@ -295,7 +296,7 @@ Current limitations:
 - WebSocket market broadcasting is not implemented.
 - React Native app is not scaffolded.
 - UI screens are not implemented.
-- Tests currently cover only backend foundation routes.
+- Tests currently cover backend foundation routes plus pure market calculation/state/snapshot utilities.
 - No CI exists yet.
 
 Production hardening topics for later:
