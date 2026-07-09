@@ -2,7 +2,7 @@
 
 PulseCrypto is a practical-assignment project for a Staff Engineer / Mobile Architect role. The final target is a real-time cryptocurrency market viewer with a Node.js + TypeScript backend gateway and a React Native mobile app running on Android Emulator.
 
-This repository currently has shared TypeScript contracts and a backend foundation. The backend exposes `GET /health`, `GET /pairs/meta`, and an accept-only WebSocket server. Binance ingestion, market snapshot broadcasting, React Native scaffolding, mobile screens, and UI components are not implemented yet.
+This repository currently has shared TypeScript contracts, a backend foundation, pure market-state utilities, and Binance ingestion foundation. The backend exposes `GET /health`, `GET /pairs/meta`, and an accept-only WebSocket server. Market snapshot broadcasting, React Native scaffolding, mobile screens, and UI components are not implemented yet.
 
 ## What this project demonstrates
 
@@ -18,8 +18,8 @@ This repository currently has shared TypeScript contracts and a backend foundati
 | --- | --- | --- |
 | Backend | Node.js service that bridges Binance public market data to mobile clients | Planned |
 | Backend | TypeScript preferred, Express/Fastify or similar, WebSockets | Backend foundation implemented |
-| Backend | Subscribe to BTC/USDT, ETH/USDT, SOL/USDT, DOGE/USDT, XRP/USDT | Planned |
-| Backend | Ingest order book updates and batch processed updates | Planned |
+| Backend | Subscribe to BTC/USDT, ETH/USDT, SOL/USDT, DOGE/USDT, XRP/USDT | Binance ingestion foundation implemented |
+| Backend | Ingest order book updates and batch processed updates | Ingestion implemented; batching planned |
 | Backend | Configurable broadcast interval, default 100ms | Planned |
 | Backend | Slow-consumer protection to prevent unbounded memory growth | Planned |
 | Backend | `GET /pairs/meta` metadata endpoint | Implemented with mocked metadata |
@@ -39,7 +39,7 @@ P0 assignment requirements take priority over optional visual details from the F
 
 The planned system uses a monorepo with clear ownership boundaries:
 
-- `backend/`: local market gateway foundation. It currently exposes REST health/metadata routes and an accept-only WebSocket server. Later it will connect to Binance public streams, normalize market data, coalesce high-frequency updates, and broadcast WebSocket market snapshots.
+- `backend/`: local market gateway foundation. It currently exposes REST health/metadata routes, an accept-only WebSocket server, Binance stream ingestion, and pure market-state utilities. Later it will coalesce high-frequency updates and broadcast WebSocket market snapshots.
 - `mobile/`: React Native app. It will consume backend REST metadata and WebSocket market batches, persist favourites locally, and render watchlist/details experiences.
 - `packages/shared/`: shared contracts and constants only. It must not contain runtime side effects, backend services, mobile stores, or UI code.
 - `docs/`: architecture notes, ADRs, validation notes, assumptions, and implementation evidence.
@@ -70,16 +70,14 @@ Current backend foundation:
 - WebSocket server accepts client connections and sends a temporary `connection.ready` acknowledgement.
 - Shared TypeScript contracts define supported pairs, REST metadata, and planned market snapshot batch messages.
 - Backend market calculation, latest-state store, and snapshot builder utilities exist with unit tests.
+- Binance combined-stream URL construction, defensive message parsing, reconnect policy, and upstream WebSocket ingestion are implemented and wired into `MarketStateStore`.
 
 Planned backend responsibilities:
 
-- Own the Binance public market stream connection.
-- Normalize external payloads into internal market snapshots before use.
-- Maintain latest known ticker/order-book-derived state per pair.
 - Broadcast processed WebSocket market snapshots to connected mobile clients.
 - Bound memory and connection resources under sustained update bursts.
 
-Binance integration and market snapshot broadcasting do not exist yet. Market-state utilities are not wired to an external stream or WebSocket broadcaster yet.
+Market snapshot broadcasting does not exist yet. Market-state utilities are wired to Binance ingestion, but not to a WebSocket broadcaster yet.
 
 ## Stream processing and backpressure
 
@@ -236,6 +234,13 @@ Backend development startup:
 pnpm dev:backend
 ```
 
+Backend Binance ingestion configuration:
+
+```text
+BINANCE_ENABLED=false          # Optional; default is true
+BINANCE_STREAM_BASE_URL=...    # Optional; default is wss://stream.binance.com:9443
+```
+
 Default local endpoints:
 
 ```text
@@ -258,10 +263,16 @@ Physical devices will need the host machine LAN IP or another reachable endpoint
 
 ## Testing and validation
 
+Current backend test coverage:
+
+- Backend foundation route tests for `GET /health` and `GET /pairs/meta`.
+- Market calculation, latest-state store, and snapshot builder unit tests.
+- Binance stream-name construction, combined-message parser, and reconnect delay policy tests.
+- BinanceStreamClient behavior tests for upstream socket lifecycle, message routing, and reconnect handling.
+
 Planned validation layers:
 
 - Contract validation for REST and WebSocket payloads.
-- Backend foundation tests for `GET /health` and `GET /pairs/meta`.
 - Backend unit tests for normalization, coalescing, batching, and slow-consumer behavior.
 - Backend integration tests for local REST and WebSocket interfaces.
 - Mobile unit tests for stores/selectors and persistence restoration.
@@ -292,11 +303,11 @@ AI assistance is allowed by the assignment and expected by the role context. Thi
 Current limitations:
 
 - Backend runtime is limited to HTTP foundation routes and accept-only WebSocket connections.
-- Binance integration is not implemented.
+- Binance ingestion is implemented, but not yet exposed to mobile clients.
 - WebSocket market broadcasting is not implemented.
 - React Native app is not scaffolded.
 - UI screens are not implemented.
-- Tests currently cover backend foundation routes plus pure market calculation/state/snapshot utilities.
+- Tests currently cover backend foundation routes, market calculation/state/snapshot utilities, Binance stream-name/parser/reconnect tests, and BinanceStreamClient behavior tests.
 - No CI exists yet.
 
 Production hardening topics for later:

@@ -1,6 +1,6 @@
 # PulseCrypto Architecture Blueprint
 
-This blueprint describes the intended architecture and current implementation status. Shared contracts, the backend foundation, and pure backend market calculation/state/snapshot utilities are implemented. Binance ingestion, market snapshot broadcasting, and mobile application code have not been implemented yet.
+This blueprint describes the intended architecture and current implementation status. Shared contracts, the backend foundation, pure backend market calculation/state/snapshot utilities, and Binance ingestion foundation are implemented. Market snapshot broadcasting and mobile application code have not been implemented yet.
 
 ## System Overview
 
@@ -19,7 +19,8 @@ Current status:
 - Backend `GET /pairs/meta` exists and returns mocked metadata for supported pairs.
 - Backend WebSocket server accepts clients and sends a temporary `connection.ready` acknowledgement.
 - Backend market calculation, latest-state store, and snapshot builder utilities exist and are covered by unit tests.
-- Binance ingestion and `market.snapshot.batch` broadcasting are not implemented.
+- Binance combined-stream URL construction, defensive parser, reconnect policy, and upstream WebSocket ingestion are implemented and wired into `MarketStateStore`.
+- `market.snapshot.batch` broadcasting is not implemented.
 - Mobile app code is not scaffolded.
 
 ## Boundaries
@@ -59,9 +60,9 @@ The metadata refresh must not interrupt an active WebSocket stream.
 
 The current mobile flow is not implemented yet.
 
-## Planned Binance Stream Strategy
+## Binance Stream Strategy
 
-The backend will subscribe to Binance public streams for at least:
+The backend builds and connects to Binance public combined streams for:
 
 - `BTCUSDT`
 - `ETHUSDT`
@@ -69,9 +70,9 @@ The backend will subscribe to Binance public streams for at least:
 - `DOGEUSDT`
 - `XRPUSDT`
 
-The planned stream model combines partial-depth/order-book data with ticker-style market data so the app can show price, 24h movement, spread, buy pressure, sell pressure, bids, asks, and timestamps.
+The stream model combines partial-depth/order-book data with ticker-style market data so the backend can maintain price, 24h movement, spread, buy pressure, sell pressure, bids, asks, and timestamps.
 
-Binance data is external and untrusted. The backend must validate shape and numeric ranges before using it.
+Binance data is external and untrusted. The parser validates shape and numeric ranges before updating market state. Full L2 diff-depth sequencing remains out of scope for this market viewer.
 
 ## Planned WebSocket Batch Strategy
 

@@ -1,5 +1,11 @@
 import { WebSocketServer } from "ws";
+import type { FastifyBaseLogger } from "fastify";
+import {
+  BinanceStreamClient,
+  type BinanceStreamClientLogger
+} from "./binance/BinanceStreamClient";
 import { loadEnv } from "./config/env";
+import { MarketStateStore } from "./market/MarketStateStore";
 import { createHttpServer } from "./server/createHttpServer";
 import { ClientConnectionManager } from "./ws/ClientConnectionManager";
 
@@ -21,6 +27,37 @@ const closeWebSocketServer = (server: WebSocketServer): Promise<void> =>
     });
   });
 
+const readBooleanEnv = (name: string, fallback: boolean): boolean => {
+  const value = process.env[name];
+
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+
+  return !["0", "false", "no", "off"].includes(value.trim().toLowerCase());
+};
+
+const createBinanceLogger = (
+  logger: FastifyBaseLogger
+): BinanceStreamClientLogger => ({
+  info(message, details) {
+    if (details === undefined) {
+      logger.info(message);
+      return;
+    }
+
+    logger.info(details, message);
+  },
+  warn(message, details) {
+    if (details === undefined) {
+      logger.warn(message);
+      return;
+    }
+
+    logger.warn(details, message);
+  }
+});
+
 const start = async (): Promise<void> => {
   const env = loadEnv();
   const httpServer = await createHttpServer({ logger: true });
@@ -30,6 +67,13 @@ const start = async (): Promise<void> => {
   });
   const clientConnectionManager = new ClientConnectionManager();
   const wsReady = waitForWebSocketServer(wsServer);
+  const marketStateStore = new MarketStateStore();
+  const binanceStreamClient = new BinanceStreamClient({
+    marketStateStore,
+    baseUrl: process.env.BINANCE_STREAM_BASE_URL,
+    enabled: readBooleanEnv("BINANCE_ENABLED", true),
+    logger: createBinanceLogger(httpServer.log)
+  });
 
   clientConnectionManager.attach(wsServer);
 
@@ -46,10 +90,12 @@ const start = async (): Promise<void> => {
     },
     "PulseCrypto backend foundation started"
   );
+  binanceStreamClient.start();
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     httpServer.log.info({ signal }, "Stopping PulseCrypto backend foundation");
 
+    binanceStreamClient.stop();
     clientConnectionManager.closeAll();
     await closeWebSocketServer(wsServer);
     await httpServer.close();
