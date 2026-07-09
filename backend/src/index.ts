@@ -5,9 +5,11 @@ import {
   type BinanceStreamClientLogger
 } from "./binance/BinanceStreamClient";
 import { loadEnv } from "./config/env";
+import { MarketSnapshotBuilder } from "./market/MarketSnapshotBuilder";
 import { MarketStateStore } from "./market/MarketStateStore";
 import { createHttpServer } from "./server/createHttpServer";
 import { ClientConnectionManager } from "./ws/ClientConnectionManager";
+import { MarketBroadcaster } from "./ws/MarketBroadcaster";
 
 const waitForWebSocketServer = (server: WebSocketServer): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -65,9 +67,19 @@ const start = async (): Promise<void> => {
     host: env.host,
     port: env.wsPort
   });
-  const clientConnectionManager = new ClientConnectionManager();
+  const clientConnectionManager = new ClientConnectionManager({
+    heartbeatIntervalMs: env.wsHeartbeatIntervalMs
+  });
   const wsReady = waitForWebSocketServer(wsServer);
   const marketStateStore = new MarketStateStore();
+  const marketSnapshotBuilder = new MarketSnapshotBuilder(marketStateStore);
+  const marketBroadcaster = new MarketBroadcaster({
+    snapshotBuilder: marketSnapshotBuilder,
+    clients: clientConnectionManager,
+    intervalMs: env.marketBroadcastIntervalMs,
+    maxBufferedAmountBytes: env.wsMaxBufferedAmountBytes,
+    maxConsecutiveSlowTicks: env.wsMaxConsecutiveSlowTicks
+  });
   const binanceStreamClient = new BinanceStreamClient({
     marketStateStore,
     baseUrl: process.env.BINANCE_STREAM_BASE_URL,
@@ -86,15 +98,19 @@ const start = async (): Promise<void> => {
   httpServer.log.info(
     {
       httpPort: env.httpPort,
-      wsPort: env.wsPort
+      wsPort: env.wsPort,
+      marketBroadcastIntervalMs: env.marketBroadcastIntervalMs
     },
     "PulseCrypto backend foundation started"
   );
+  clientConnectionManager.startHeartbeat();
+  marketBroadcaster.start();
   binanceStreamClient.start();
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     httpServer.log.info({ signal }, "Stopping PulseCrypto backend foundation");
 
+    marketBroadcaster.stop();
     binanceStreamClient.stop();
     clientConnectionManager.closeAll();
     await closeWebSocketServer(wsServer);

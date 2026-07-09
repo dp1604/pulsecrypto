@@ -1,6 +1,6 @@
 # PulseCrypto Architecture Blueprint
 
-This blueprint describes the intended architecture and current implementation status. Shared contracts, the backend foundation, pure backend market calculation/state/snapshot utilities, and Binance ingestion foundation are implemented. Market snapshot broadcasting and mobile application code have not been implemented yet.
+This blueprint describes the intended architecture and current implementation status. Shared contracts, the backend foundation, pure backend market calculation/state/snapshot utilities, Binance ingestion, and WebSocket market snapshot broadcasting are implemented. Mobile application code has not been implemented yet.
 
 ## System Overview
 
@@ -17,15 +17,17 @@ Current status:
 - Shared contracts/constants exist in `packages/shared/`.
 - Backend `GET /health` exists.
 - Backend `GET /pairs/meta` exists and returns mocked metadata for supported pairs.
-- Backend WebSocket server accepts clients and sends a temporary `connection.ready` acknowledgement.
+- Backend WebSocket server accepts clients, sends `connection.ready`, and broadcasts `market.snapshot.batch`.
 - Backend market calculation, latest-state store, and snapshot builder utilities exist and are covered by unit tests.
 - Binance combined-stream URL construction, defensive parser, reconnect policy, and upstream WebSocket ingestion are implemented and wired into `MarketStateStore`.
-- `market.snapshot.batch` broadcasting is not implemented.
+- `MarketBroadcaster` emits validated `market.snapshot.batch` messages on a configurable interval (default 100ms).
+- Slow-consumer protection skips high-`bufferedAmount` sends, tracks consecutive slow ticks, and closes persistently slow clients without per-client queues.
+- Client heartbeat ping/pong removes dead connections.
 - Mobile app code is not scaffolded.
 
 ## Boundaries
 
-- `backend/`: Node.js + TypeScript backend foundation, planned market gateway, Binance adapters, stream processing, REST API, WebSocket server, backpressure policy.
+- `backend/`: Node.js + TypeScript backend market gateway, Binance adapters, stream processing, REST API, WebSocket server, and backpressure policy.
 - `mobile/`: React Native app, navigation, UI, local persistence, connection lifecycle, rendering performance strategy.
 - `packages/shared/`: contracts, constants, schemas, and pure utilities that are safe for both backend and mobile.
 - `docs/`: architecture notes, ADRs, setup, validation evidence, assumptions, and trade-offs.
@@ -74,21 +76,21 @@ The stream model combines partial-depth/order-book data with ticker-style market
 
 Binance data is external and untrusted. The parser validates shape and numeric ranges before updating market state. Full L2 diff-depth sequencing remains out of scope for this market viewer.
 
-## Planned WebSocket Batch Strategy
+## WebSocket Batch Strategy
 
-The backend will not forward every raw update directly to mobile clients. Instead:
+The backend does not forward every raw update directly to mobile clients. Instead:
 
 - Maintain latest normalized state per pair.
-- Mark a pair dirty when its normalized state changes.
-- Broadcast dirty pairs in one compact `market.snapshot.batch` message on a configurable interval.
-- Use 100ms as the default interval.
+- Build all supported pair snapshots from latest state.
+- Broadcast snapshots in one compact `market.snapshot.batch` message on a configurable interval.
+- Use 100ms as the default interval (`MARKET_BROADCAST_INTERVAL_MS`).
 - Do not keep unbounded per-client queues.
 - Check WebSocket `readyState` and `bufferedAmount` before sending.
 - Skip stale sends for slow clients.
-- Close persistently unhealthy clients.
+- Close persistently unhealthy clients after consecutive slow ticks.
 - Use heartbeat ping/pong.
 
-Planned batch envelope:
+Batch envelope:
 
 ```text
 type: "market.snapshot.batch"
@@ -99,7 +101,7 @@ pairs: array of pair snapshots
 
 Each pair snapshot must identify `pair`, `displayName`, `price`, `change24hPercent`, `spread`, `buyPressure`, `sellPressure`, `bids`, `asks`, and `lastUpdated`.
 
-The current WebSocket server does not send this message yet.
+The current implementation broadcasts all supported pair snapshots each tick from latest state. Dirty-pair-only broadcasting remains a deferred bandwidth optimization. Mobile app code is not scaffolded.
 
 ## Planned Mobile State Strategy
 

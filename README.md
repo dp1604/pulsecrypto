@@ -2,7 +2,7 @@
 
 PulseCrypto is a practical-assignment project for a Staff Engineer / Mobile Architect role. The final target is a real-time cryptocurrency market viewer with a Node.js + TypeScript backend gateway and a React Native mobile app running on Android Emulator.
 
-This repository currently has shared TypeScript contracts, a backend foundation, pure market-state utilities, and Binance ingestion foundation. The backend exposes `GET /health`, `GET /pairs/meta`, and an accept-only WebSocket server. Market snapshot broadcasting, React Native scaffolding, mobile screens, and UI components are not implemented yet.
+This repository currently has shared TypeScript contracts, a backend foundation, pure market-state utilities, Binance ingestion, and WebSocket market snapshot broadcasting. The backend exposes `GET /health`, `GET /pairs/meta`, and a local WebSocket server that sends `connection.ready` and `market.snapshot.batch` messages. React Native scaffolding, mobile screens, and UI components are not implemented yet.
 
 ## What this project demonstrates
 
@@ -16,12 +16,12 @@ This repository currently has shared TypeScript contracts, a backend foundation,
 
 | Area | Assignment requirement | Stage |
 | --- | --- | --- |
-| Backend | Node.js service that bridges Binance public market data to mobile clients | Planned |
+| Backend | Node.js service that bridges Binance public market data to mobile clients | Backend gateway implemented; mobile consumer planned |
 | Backend | TypeScript preferred, Express/Fastify or similar, WebSockets | Backend foundation implemented |
 | Backend | Subscribe to BTC/USDT, ETH/USDT, SOL/USDT, DOGE/USDT, XRP/USDT | Binance ingestion foundation implemented |
-| Backend | Ingest order book updates and batch processed updates | Ingestion implemented; batching planned |
-| Backend | Configurable broadcast interval, default 100ms | Planned |
-| Backend | Slow-consumer protection to prevent unbounded memory growth | Planned |
+| Backend | Ingest order book updates and batch processed updates | Implemented |
+| Backend | Configurable broadcast interval, default 100ms | Implemented |
+| Backend | Slow-consumer protection to prevent unbounded memory growth | Implemented |
 | Backend | `GET /pairs/meta` metadata endpoint | Implemented with mocked metadata |
 | Mobile | React Native app running on Android Emulator | Planned |
 | Mobile | Watchlist with pair, price, 24h change, connection indicator, favourite toggle | Planned |
@@ -39,7 +39,7 @@ P0 assignment requirements take priority over optional visual details from the F
 
 The planned system uses a monorepo with clear ownership boundaries:
 
-- `backend/`: local market gateway foundation. It currently exposes REST health/metadata routes, an accept-only WebSocket server, Binance stream ingestion, and pure market-state utilities. Later it will coalesce high-frequency updates and broadcast WebSocket market snapshots.
+- `backend/`: local market gateway foundation. It exposes REST health/metadata routes, a WebSocket server, Binance stream ingestion, market-state utilities, and `market.snapshot.batch` broadcasting with slow-consumer protection.
 - `mobile/`: React Native app. It will consume backend REST metadata and WebSocket market batches, persist favourites locally, and render watchlist/details experiences.
 - `packages/shared/`: shared contracts and constants only. It must not contain runtime side effects, backend services, mobile stores, or UI code.
 - `docs/`: architecture notes, ADRs, validation notes, assumptions, and implementation evidence.
@@ -67,35 +67,36 @@ Current backend foundation:
 - Fastify HTTP server with `GET /health`.
 - Fastify HTTP server with `GET /pairs/meta`.
 - Metadata is currently mocked and generated from shared supported-pair constants.
-- WebSocket server accepts client connections and sends a temporary `connection.ready` acknowledgement.
-- Shared TypeScript contracts define supported pairs, REST metadata, and planned market snapshot batch messages.
+- WebSocket server accepts client connections, sends `connection.ready`, and broadcasts validated `market.snapshot.batch` messages.
+- Shared TypeScript contracts define supported pairs, REST metadata, and market snapshot batch messages.
 - Backend market calculation, latest-state store, and snapshot builder utilities exist with unit tests.
 - Binance combined-stream URL construction, defensive message parsing, reconnect policy, and upstream WebSocket ingestion are implemented and wired into `MarketStateStore`.
+- `MarketBroadcaster` emits latest-state snapshot batches on a configurable interval (default 100ms).
+- Slow-consumer protection skips sends when `bufferedAmount` is high, tracks consecutive slow ticks, and closes persistently slow clients. No per-client queues are maintained.
+- Client heartbeat ping/pong removes dead WebSocket connections.
 
 Planned backend responsibilities:
 
-- Broadcast processed WebSocket market snapshots to connected mobile clients.
-- Bound memory and connection resources under sustained update bursts.
-
-Market snapshot broadcasting does not exist yet. Market-state utilities are wired to Binance ingestion, but not to a WebSocket broadcaster yet.
+- Bound memory and connection resources under sustained update bursts beyond the current defaults.
 
 ## Stream processing and backpressure
 
-The planned strategy is latest-state coalescing:
+The backend uses latest-state coalescing:
 
 - Binance may emit updates faster than the mobile UI should render.
-- The backend will keep the most recent processed state per pair.
-- A configurable interval will broadcast a compact batch of changed pairs to clients. The default target is 100ms.
-- The backend will not keep unbounded per-client queues.
-- Slow-consumer protection will check WebSocket `readyState` and `bufferedAmount`, skip stale sends for slow clients, close persistently unhealthy clients, and use heartbeat ping/pong.
+- The backend keeps the most recent processed state per pair in `MarketStateStore`.
+- `MarketBroadcaster` emits a compact `market.snapshot.batch` on a configurable interval. The default is 100ms (`MARKET_BROADCAST_INTERVAL_MS`).
+- The backend does not forward every raw Binance event and does not keep unbounded per-client queues.
+- Slow-consumer protection checks WebSocket `readyState` and `bufferedAmount` before each send.
+- If `bufferedAmount` exceeds `WS_MAX_BUFFERED_AMOUNT_BYTES` (default 1,000,000), that client is skipped for the tick.
+- Consecutive skipped ticks are tracked per client. After `WS_MAX_CONSECUTIVE_SLOW_TICKS` (default 5), the client is closed and removed.
+- Heartbeat ping/pong runs on `WS_HEARTBEAT_INTERVAL_MS` (default 30,000ms) and closes clients that stop responding.
 
-The final implementation must document the selected policy and its trade-offs.
-
-The current WebSocket server accepts clients only. It does not broadcast market data yet.
+The implementation documents this policy in code, tests, and ADR-003.
 
 ## WebSocket contract
 
-The implementation details will be finalized when backend contracts are implemented. The planned shape is a batched message so clients can process one frame per broadcast interval:
+The backend currently sends this batched message shape to connected clients:
 
 ```json
 {
@@ -267,14 +268,14 @@ Current backend test coverage:
 
 - Backend foundation route tests for `GET /health` and `GET /pairs/meta`.
 - Market calculation, latest-state store, and snapshot builder unit tests.
-- Binance stream-name construction, combined-message parser, and reconnect delay policy tests.
-- BinanceStreamClient behavior tests for upstream socket lifecycle, message routing, and reconnect handling.
+- Binance stream-name construction, combined-message parser, reconnect delay policy, and `BinanceStreamClient` behavior tests.
+- `MarketBroadcaster` batching, sequence, slow-consumer skip/close, and integration-style snapshot delivery tests.
+- `ClientConnectionManager` tracking, heartbeat, and shutdown cleanup tests.
 
 Planned validation layers:
 
-- Contract validation for REST and WebSocket payloads.
-- Backend unit tests for normalization, coalescing, batching, and slow-consumer behavior.
-- Backend integration tests for local REST and WebSocket interfaces.
+- Contract validation for REST and WebSocket payloads on mobile.
+- Backend integration tests for local REST and WebSocket interfaces beyond current unit coverage.
 - Mobile unit tests for stores/selectors and persistence restoration.
 - Mobile integration or component tests for watchlist, search, favourites, details, offline status, reconnect, and pull-to-refresh.
 - Manual Android Emulator validation and screen recording for final delivery.
@@ -302,12 +303,11 @@ AI assistance is allowed by the assignment and expected by the role context. Thi
 
 Current limitations:
 
-- Backend runtime is limited to HTTP foundation routes and accept-only WebSocket connections.
-- Binance ingestion is implemented, but not yet exposed to mobile clients.
-- WebSocket market broadcasting is not implemented.
+- Backend runtime exposes HTTP foundation routes, Binance ingestion, and WebSocket `market.snapshot.batch` broadcasting with slow-consumer protection.
+- Binance ingestion updates market state, and snapshots are broadcast locally to connected clients.
 - React Native app is not scaffolded.
 - UI screens are not implemented.
-- Tests currently cover backend foundation routes, market calculation/state/snapshot utilities, Binance stream-name/parser/reconnect tests, and BinanceStreamClient behavior tests.
+- Tests cover backend foundation routes, market calculation/state/snapshot utilities, Binance ingestion, broadcaster behavior, and client connection management.
 - No CI exists yet.
 
 Production hardening topics for later:
