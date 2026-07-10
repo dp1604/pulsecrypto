@@ -2,9 +2,9 @@
 
 Mobile UI engineering standards for PulseCrypto—performance-first, Figma-aligned, assignment-honest.
 
-Figma scope: [figma-rules.md](./figma-rules.md)  
-Architecture: [architecture-principles.md](./architecture-principles.md)  
-Theme source: `mobile/src/theme/colors.ts`
+- **Figma scope:** [figma-rules.md](./figma-rules.md)
+- **Architecture:** [architecture-principles.md](./architecture-principles.md)
+- **Theme source:** `mobile/src/theme/colors.ts`
 
 ## Figma MCP (UI/UX tasks)
 

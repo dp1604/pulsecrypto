@@ -2,9 +2,9 @@
 
 How humans and AI agents work in this repository using Cursor, incremental delivery, and external review.
 
-**Enforcement rules:** [AGENTS.md](../AGENTS.md)  
-**Architecture context:** [architecture-principles.md](./architecture-principles.md)  
-**Task output format:** [reporting-template.md](./reporting-template.md)
+- **Enforcement rules:** [AGENTS.md](../AGENTS.md)
+- **Architecture context:** [architecture-principles.md](./architecture-principles.md)
+- **Task output format:** [reporting-template.md](./reporting-template.md)
 
 ## Purpose of this repository
 

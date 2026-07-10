@@ -2,8 +2,8 @@
 
 What to test, when, and how evidence is judged sufficient.
 
-Architecture context: [architecture-principles.md](./architecture-principles.md)  
-Pre-commit review: [review-checklist.md](./review-checklist.md)
+- **Architecture context:** [architecture-principles.md](./architecture-principles.md)
+- **Pre-commit review:** [review-checklist.md](./review-checklist.md)
 
 ## Principles
 
