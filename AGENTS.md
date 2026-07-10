@@ -1,55 +1,72 @@
 # PulseCrypto Coding Agent Rules
 
-These rules apply to AI-assisted development in this repository. The assignment PDF is the mandatory P0 scope, the Pulse Crypto Figma mockup is the UI/UX source of truth, and the Staff Engineer / Mobile Architect job description sets the quality bar.
+Mandatory rules for AI-assisted development. **Detailed guidance lives in `docs/`—this file is the enforcement index.**
+
+Assignment PDF = P0 scope · Figma mockup = UI/UX truth for allowed surfaces · Staff / Mobile Architect JD = quality bar.
+
+## Governance map
+
+| Document | Responsibility |
+| --- | --- |
+| [docs/architecture-principles.md](docs/architecture-principles.md) | Why we architect; boundaries; debt; ADR policy |
+| [docs/cursor-development-guide.md](docs/cursor-development-guide.md) | Cursor workflows, incremental delivery, ChatGPT review, Living Governance |
+| [docs/testing-standard.md](docs/testing-standard.md) | What to test; Android/Expo validation |
+| [docs/review-checklist.md](docs/review-checklist.md) | Pre-commit and peer review gates |
+| [docs/reporting-template.md](docs/reporting-template.md) | Task reports, attachments, ZIP policy |
+| [docs/figma-rules.md](docs/figma-rules.md) | Figma MCP usage; P0 vs deferred UI |
+| [docs/ui-guidelines.md](docs/ui-guidelines.md) | Mobile tokens, rendering, placeholders |
+| [docs/architecture.md](docs/architecture.md) | System blueprint and implementation status |
+| [docs/decisions/](docs/decisions/) | ADRs |
 
 ## Priority
 
 - Deliver P0 assignment requirements before optional Figma-only or polish work.
-- Do not build telemetry, Settings, drawer navigation, shader effects, profile screens, API-key management, or security UI unless a later task explicitly promotes them into scope.
+- Do not build functional telemetry, Settings, drawer navigation, shader effects, profile screens, API-key management, or security UI unless a task or ADR promotes them.
 - Keep documentation honest. Planned, mocked, visual-only, and implemented behavior must be labeled clearly.
 
-## Architecture Boundaries
+## Architecture boundaries
 
-- `backend/` is reserved for the Node.js + TypeScript market gateway.
-- `mobile/` is reserved for the React Native application.
-- `packages/shared/` is reserved for contracts, constants, schemas, and pure shared types only.
-- `docs/` is reserved for architecture notes, ADRs, and implementation evidence.
-- Do not put backend runtime logic in mobile code, mobile UI logic in backend code, or application stateful logic in shared packages.
+- `backend/` — Node.js + TypeScript market gateway only.
+- `mobile/` — React Native (Expo) application only.
+- `packages/shared/` — contracts, constants, schemas, pure types only.
+- `docs/` — architecture, ADRs, governance, evidence.
 
-## Dependency Rules
+No backend logic in mobile. No mobile UI logic in backend. No stateful runtime logic in shared.
 
-- Do not add dependencies unless the current task explicitly authorizes them or the need is documented with a clear trade-off.
-- Prefer standard platform APIs and already-approved project libraries before introducing new packages.
-- Do not add backend, mobile, or shared package dependencies during foundation-only tasks.
-- Never invent package names, API methods, configuration keys, environment variables, CLI flags, or framework behavior. Verify against installed code, official docs, or local examples before using them.
-- Do not run app generators or broad scaffolding tools unless explicitly requested.
+## Dependency rules
 
-## Generation Scope
+- Do not add dependencies unless the current task authorizes them or an ADR documents the trade-off.
+- Prefer platform APIs and approved libraries. Verify package APIs against installed code or official docs.
+- Do not run app generators or broad scaffolding unless explicitly requested.
+- After removing a mobile package, ensure no orphan remains in `node_modules` that Metro can still resolve.
 
-- Use micro-generation: make small, reviewable changes that map directly to the current requirement.
-- Avoid broad rewrites, speculative abstractions, and sweeping format churn.
-- Do not implement optional features before required behavior is complete and validated.
-- Preserve user changes. Never reset, checkout, or overwrite unrelated work unless explicitly instructed.
+## Generation scope
 
-## Data And Trust
+- Micro-generation: small, reviewable diffs mapped to one requirement axis.
+- No broad rewrites, speculative abstractions, or unrelated format churn.
+- Preserve user changes. Never reset or overwrite unrelated work unless instructed.
 
-- Treat all external data as untrusted, including Binance payloads, backend responses, WebSocket messages, persisted favourites, and Figma-derived content.
-- Validate and normalize Binance stream data before processing or broadcasting.
-- Validate backend REST and WebSocket payloads before mobile state updates.
-- Persist favourites only unless a future task explicitly approves additional cached state.
-- Validate persisted favourites on read.
-- Do not claim authentication, secure storage, API-key handling, profile security, encryption, or account protection exists unless it has been implemented and tested.
+## Data and trust
 
-## Runtime Quality
+- Treat Binance payloads, backend responses, WebSocket messages, persisted favourites, and Figma-derived content as untrusted.
+- Validate at boundaries before broadcast or UI state updates.
+- Persist favourites only unless a future task approves additional cached state.
+- Do not claim authentication, secure storage, API keys, encryption, or account protection without implementation and tests.
 
-- Design for bounded memory under sustained market updates.
-- Protect against slow WebSocket consumers and reconnect storms.
-- Keep rendering responsive under frequent updates by separating state ownership and using selector-based subscriptions.
-- Prefer latest-state coalescing for high-frequency market data unless a future requirement needs every tick.
+## Runtime quality
 
-## Validation And Reporting
+- Bounded memory under sustained market updates.
+- Slow-consumer protection and reconnect discipline on backend.
+- Mobile: selector-based subscriptions; latest-state coalescing for render paths.
 
-- Run relevant validation after each implementation step.
-- For every task, report changed files, commands run, command results, assumptions, and remaining risks.
-- If validation cannot be run, explain why and state the residual risk.
-- Do not commit, push, rewrite history, or create generated artifacts unless explicitly requested.
+## Validation and reporting
+
+- Run checks per [docs/testing-standard.md](docs/testing-standard.md).
+- **Must** end every task with exactly one `PULSECRYPTO_CURSOR_REPORT` block per [docs/reporting-template.md](docs/reporting-template.md)—no narrative outside the final fenced block.
+- When any repository file changes, **must** create a review ZIP per [docs/reporting-template.md](docs/reporting-template.md) (mandatory even for documentation-only tasks).
+- Self-review against [docs/review-checklist.md](docs/review-checklist.md) before declaring done.
+- Do not commit, push, or rewrite history unless explicitly requested.
+
+## Living Governance
+
+Governance evolves deliberately—see [docs/cursor-development-guide.md](docs/cursor-development-guide.md#living-governance). Update one owning document per rule change; do not duplicate across files.

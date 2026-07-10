@@ -1,6 +1,6 @@
 # PulseCrypto Architecture Blueprint
 
-This blueprint describes the intended architecture and current implementation status. Shared contracts, the backend foundation, pure backend market calculation/state/snapshot utilities, Binance ingestion, and WebSocket market snapshot broadcasting are implemented. Mobile application code has not been implemented yet.
+This blueprint describes the intended architecture and current implementation status. Shared contracts/constants, the backend market gateway, Binance ingestion, WebSocket snapshot broadcasting, and slow-consumer protection are implemented. The Expo React Native mobile foundation is scaffolded with placeholder screens; functional mobile data integration and assignment UI remain pending.
 
 ## System Overview
 
@@ -23,7 +23,8 @@ Current status:
 - `MarketBroadcaster` emits validated `market.snapshot.batch` messages on a configurable interval (default 100ms).
 - Slow-consumer protection skips high-`bufferedAmount` sends, tracks consecutive slow ticks, and closes persistently slow clients without per-client queues.
 - Client heartbeat ping/pong removes dead connections.
-- Mobile app code is not scaffolded.
+- Mobile foundation is scaffolded under `mobile/`: Expo SDK 57, bottom-tab navigation (Markets default, Terminal, Telemetry, Settings placeholders), dark theme tokens, Android Expo Go launch confirmed on emulator.
+- REST/WebSocket mobile data integration, watchlist, search, favourites, market details, offline/reconnect, pull-to-refresh, price flash, and order-book animations are not implemented.
 
 ## Boundaries
 
@@ -60,7 +61,7 @@ mobile pull-to-refresh
 
 The metadata refresh must not interrupt an active WebSocket stream.
 
-The current mobile flow is not implemented yet.
+Mobile REST/WebSocket consumption and watchlist/detail rendering are not implemented yet. The foundation navigation shell and placeholders exist only.
 
 ## Binance Stream Strategy
 
@@ -101,7 +102,7 @@ pairs: array of pair snapshots
 
 Each pair snapshot must identify `pair`, `displayName`, `price`, `change24hPercent`, `spread`, `buyPressure`, `sellPressure`, `bids`, `asks`, and `lastUpdated`.
 
-The current implementation broadcasts all supported pair snapshots each tick from latest state. Dirty-pair-only broadcasting remains a deferred bandwidth optimization. Mobile app code is not scaffolded.
+The current implementation broadcasts all supported pair snapshots each tick from latest state. Dirty-pair-only broadcasting remains a deferred bandwidth optimization. Mobile consumes neither REST nor WebSocket data yet; functional assignment screens remain pending.
 
 ## Planned Mobile State Strategy
 
@@ -120,7 +121,7 @@ Persisted favourites must be validated when restored. Additional persisted cache
 
 ## Figma Usage
 
-The Pulse Crypto Figma mockup is the official UI/UX source of truth. The preferred inspection path is Figma MCP or equivalent structured access. Screenshots are the fallback when structured inspection is unavailable.
+The Pulse Crypto Figma mockup is the official UI/UX source of truth. For UI/UX tasks, Figma MCP is the primary inspection path—see [figma-rules.md](./figma-rules.md). Screenshots are fallback only.
 
 Implementation order:
 
@@ -149,12 +150,18 @@ Backend gate:
 - Coalescing and slow-consumer behavior are tested.
 - Binance adapter handles invalid payloads and reconnect scenarios.
 
-Mobile gate:
+Mobile gate (when mobile data layer and P0 screens are implemented):
 
 - App runs on Android Emulator.
 - Watchlist, search, favourites, details, offline, reconnect, and pull-to-refresh are validated.
 - State updates remain smooth under sustained backend update bursts.
-- Figma-required P0 screens are visually checked.
+- Figma-required P0 screens are visually checked via MCP per [figma-rules.md](./figma-rules.md).
+
+Current mobile foundation gate (scaffold only):
+
+- Expo typecheck passes.
+- Android Expo Go launch confirmed with Markets default tab and four bottom tabs.
+- Placeholders labeled honestly; no live data claims.
 
 Delivery gate:
 
