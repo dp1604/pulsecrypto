@@ -7,6 +7,7 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "dev:backend": "pnpm --filter @pulsecrypto/backend dev"
+    "dev:backend": "pnpm --filter @pulsecrypto/backend dev",
+    "dev:mobile": "pnpm --filter @pulsecrypto/mobile start"
   }
 }

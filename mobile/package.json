@@ -1,0 +1,31 @@
+{
+  "name": "@pulsecrypto/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "HOST=127.0.0.1 NODE_OPTIONS='--dns-result-order=ipv4first' expo start",
+    "android": "HOST=127.0.0.1 NODE_OPTIONS='--dns-result-order=ipv4first' expo start --android --localhost --clear",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No mobile tests yet\""
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.18.8",
+    "@react-navigation/native": "^7.3.8",
+    "expo": "~57.0.4",
+    "expo-status-bar": "~57.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}
