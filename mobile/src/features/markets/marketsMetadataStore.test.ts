@@ -557,4 +557,228 @@ describe("marketsMetadataStore", () => {
 
     expect(store.getState().status).toBe("success");
   });
+
+  it("retains the list while refresh is pending", async () => {
+    const pendingRefresh = deferred<PairMeta[]>();
+    let callCount = 0;
+    const fetchPairsMetaImpl = vi.fn(() => {
+      callCount += 1;
+
+      if (callCount === 1) {
+        return Promise.resolve(samplePairs);
+      }
+
+      return pendingRefresh.promise;
+    });
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().load();
+    const refreshPromise = store.getState().refresh();
+
+    expect(store.getState()).toMatchObject({
+      status: "success",
+      items: samplePairs,
+      isRefreshing: true
+    });
+
+    pendingRefresh.resolve(samplePairs);
+    await refreshPromise;
+
+    expect(store.getState().isRefreshing).toBe(false);
+  });
+
+  it("replaces items after a successful refresh", async () => {
+    const fetchPairsMetaImpl = vi
+      .fn()
+      .mockResolvedValueOnce(samplePairs)
+      .mockResolvedValueOnce([
+        {
+          ...samplePairs[0],
+          pair: "ETHUSDT",
+          displayName: "ETH / USDT"
+        }
+      ]);
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().load();
+    await store.getState().refresh();
+
+    expect(store.getState().items[0]?.pair).toBe("ETHUSDT");
+    expect(store.getState().status).toBe("success");
+    expect(store.getState().refreshErrorMessage).toBeNull();
+  });
+
+  it("retains items and exposes a non-blocking refresh error", async () => {
+    const fetchPairsMetaImpl = vi
+      .fn()
+      .mockResolvedValueOnce(samplePairs)
+      .mockRejectedValueOnce(new ApiError("network", "Network request failed."));
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().load();
+    await store.getState().refresh();
+
+    expect(store.getState()).toMatchObject({
+      status: "success",
+      items: samplePairs,
+      isRefreshing: false
+    });
+    expect(store.getState().refreshErrorMessage).toContain(
+      "Unable to refresh pair metadata"
+    );
+  });
+
+  it("deduplicates concurrent refresh calls", async () => {
+    const pendingRefresh = deferred<PairMeta[]>();
+    let callCount = 0;
+    const fetchPairsMetaImpl = vi.fn(() => {
+      callCount += 1;
+
+      if (callCount === 1) {
+        return Promise.resolve(samplePairs);
+      }
+
+      return pendingRefresh.promise;
+    });
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().load();
+    const first = store.getState().refresh();
+    const second = store.getState().refresh();
+
+    expect(second).toBe(first);
+
+    await Promise.resolve();
+
+    expect(fetchPairsMetaImpl).toHaveBeenCalledTimes(2);
+
+    pendingRefresh.resolve(samplePairs);
+    await Promise.all([first, second]);
+  });
+
+  it("delegates refresh without items to the initial load path", async () => {
+    const fetchPairsMetaImpl = vi.fn(async () => samplePairs);
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().refresh();
+
+    expect(store.getState().status).toBe("success");
+    expect(fetchPairsMetaImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears refresh errors after a later successful refresh", async () => {
+    const fetchPairsMetaImpl = vi
+      .fn()
+      .mockResolvedValueOnce(samplePairs)
+      .mockRejectedValueOnce(new ApiError("network", "Network request failed."))
+      .mockResolvedValueOnce(samplePairs);
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().load();
+    await store.getState().refresh();
+    expect(store.getState().refreshErrorMessage).not.toBeNull();
+
+    await store.getState().refresh();
+    expect(store.getState().refreshErrorMessage).toBeNull();
+  });
+
+  it("does not let a stale refresh overwrite newer metadata", async () => {
+    const resolutions: Array<(value: PairMeta[]) => void> = [];
+    let fetchCount = 0;
+    const fetchPairsMetaImpl = vi.fn(() => {
+      fetchCount += 1;
+
+      if (fetchCount === 1) {
+        return Promise.resolve(samplePairs);
+      }
+
+      return new Promise<PairMeta[]>((resolve) => {
+        resolutions.push(resolve);
+      });
+    });
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().load();
+    void store.getState().refresh();
+    await Promise.resolve();
+
+    const retryPromise = store.getState().retry();
+
+    await vi.waitFor(() => {
+      expect(resolutions).toHaveLength(2);
+    });
+
+    resolutions[1]?.([
+      {
+        ...samplePairs[0],
+        pair: "ETHUSDT",
+        displayName: "ETH / USDT"
+      }
+    ]);
+    await retryPromise;
+
+    expect(store.getState().items[0]?.pair).toBe("ETHUSDT");
+
+    resolutions[0]?.([
+      {
+        ...samplePairs[0],
+        pair: "SOLUSDT",
+        displayName: "SOL / USDT"
+      }
+    ]);
+    await Promise.resolve();
+
+    expect(store.getState().items[0]?.pair).toBe("ETHUSDT");
+  });
+
+  it("stops refreshing when cancel runs during refresh", async () => {
+    const pendingRefresh = deferred<PairMeta[]>();
+    let callCount = 0;
+    const fetchPairsMetaImpl = vi.fn(() => {
+      callCount += 1;
+
+      if (callCount === 1) {
+        return Promise.resolve(samplePairs);
+      }
+
+      return pendingRefresh.promise;
+    });
+    const store = createMarketsMetadataStore({
+      fetchPairsMetaImpl,
+      getApiBaseUrlImpl: () => "http://127.0.0.1:3000"
+    });
+
+    await store.getState().load();
+    void store.getState().refresh();
+    store.getState().cancel();
+    pendingRefresh.resolve(samplePairs);
+    await Promise.resolve();
+
+    expect(store.getState()).toMatchObject({
+      status: "success",
+      isRefreshing: false,
+      items: samplePairs
+    });
+  });
 });

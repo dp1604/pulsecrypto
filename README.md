@@ -2,7 +2,7 @@
 
 PulseCrypto is a practical-assignment project for a Staff Engineer / Mobile Architect role. The final target is a real-time cryptocurrency market viewer with a Node.js + TypeScript backend gateway and a React Native mobile app running on Android Emulator.
 
-This repository currently has shared TypeScript contracts, a backend market gateway, and an Expo React Native mobile app. The backend exposes `GET /health`, `GET /pairs/meta`, and a local WebSocket server that sends `connection.ready` and `market.snapshot.batch` messages. The mobile app has navigation shell, dark-theme foundation, and Markets REST metadata loading from `GET /pairs/meta`. Live WebSocket pricing, watchlist, favourites, search, and terminal functionality are not implemented yet.
+This repository currently has shared TypeScript contracts, a backend market gateway, and an Expo React Native mobile app. The backend exposes `GET /health`, `GET /pairs/meta`, and a local WebSocket server that sends `connection.ready` and `market.snapshot.batch` messages. The mobile app has navigation shell, dark-theme foundation, Markets REST metadata loading from `GET /pairs/meta`, local pair search/filter, AsyncStorage-backed favourites, and metadata pull-to-refresh. Live WebSocket pricing, watchlist price/change, connection state, and terminal functionality are not implemented yet.
 
 ## What this project demonstrates
 
@@ -24,13 +24,13 @@ This repository currently has shared TypeScript contracts, a backend market gate
 | Backend | Slow-consumer protection to prevent unbounded memory growth | Implemented |
 | Backend | `GET /pairs/meta` metadata endpoint | Implemented with mocked metadata |
 | Mobile | React Native app running on Android Emulator | Foundation plus Markets REST metadata; live WebSocket pricing pending |
-| Mobile | Watchlist with pair, price, 24h change, connection indicator, favourite toggle | Planned |
-| Mobile | Search/filter pairs | Planned |
-| Mobile | Persist and restore favourites locally | Planned |
+| Mobile | Watchlist with pair, price, 24h change, connection indicator, favourite toggle | Planned; metadata list with text favourite toggle implemented; live price/change pending |
+| Mobile | Search/filter pairs | Implemented on Markets with local query state |
+| Mobile | Persist and restore favourites locally | Implemented with versioned AsyncStorage payload |
 | Mobile | Market details with price, pressure, spread, bids, asks, timestamp | Planned |
 | Mobile | Live updates remain smooth during sustained bursts | Planned |
 | Mobile | Offline status, last-known data, automatic reconnect | Planned |
-| Mobile | Pull-to-refresh metadata without interrupting WebSocket stream | Planned |
+| Mobile | Pull-to-refresh metadata without interrupting WebSocket stream | Metadata pull-to-refresh implemented; WebSocket stream not yet on mobile |
 | Delivery | README with setup, architecture, assumptions, trade-offs, AI usage | In progress |
 
 P0 assignment requirements take priority over optional visual details from the Figma mockup.
@@ -40,7 +40,7 @@ P0 assignment requirements take priority over optional visual details from the F
 The planned system uses a monorepo with clear ownership boundaries:
 
 - `backend/`: implemented market gateway—REST health/metadata routes, WebSocket server, Binance stream ingestion, market-state utilities, and `market.snapshot.batch` broadcasting with slow-consumer protection.
-- `mobile/`: Expo React Native foundation with Markets metadata loading from `GET /pairs/meta`, plus Terminal, Telemetry, and Settings placeholder screens. Live WebSocket pricing, favourites persistence, search, offline/reconnect, pull-to-refresh, price flash, and order-book animations are not implemented yet.
+- `mobile/`: Expo React Native foundation with Markets metadata loading from `GET /pairs/meta`, local pair search/filter, AsyncStorage-backed favourites, and metadata pull-to-refresh, plus Terminal, Telemetry, and Settings placeholder screens. Live WebSocket pricing, offline/reconnect, price flash, and order-book animations are not implemented yet.
 - `packages/shared/`: shared contracts and constants only. It must not contain runtime side effects, backend services, mobile stores, or UI code.
 - `docs/`: architecture notes, ADRs, validation notes, assumptions, and implementation evidence.
 
@@ -172,10 +172,14 @@ Current mobile foundation:
 - Expo SDK 57 TypeScript app under `mobile/` with bottom-tab navigation.
 - Default tab is Markets.
 - Markets loads supported pair metadata from `GET /pairs/meta` over REST with runtime validation against shared contracts.
+- Markets supports local pair search/filter with screen-local query state.
+- Favourites persist in AsyncStorage under a versioned key and restore after process restart.
+- Metadata pull-to-refresh retains the current list on transient failure and replaces metadata atomically on success.
+- Favourite row controls use accessible text labels (`Favourite` / `Favourited`) until approved Figma assets are exported.
 - Terminal, Telemetry, and Settings remain honest placeholder screens.
 - Dark Figma-aligned theme tokens are in place.
 - `high24h`, `low24h`, and `volume24h` shown on Markets are backend assignment fixtures, not live exchange values.
-- Live WebSocket pricing, connection state, watchlist price/change, favourites persistence, search, offline/reconnect, pull-to-refresh, price flash, and order-book animations are not implemented yet.
+- Live WebSocket pricing, connection state, watchlist price/change, offline/reconnect, price flash, and order-book animations are not implemented yet.
 - Authentication, API keys, and security UX are intentionally not implemented.
 - Android Expo Go launch on `PulseCrypto_API_35` is confirmed when started via `pnpm --filter @pulsecrypto/mobile android` (IPv4 Metro binding + `adb reverse`). Use the Expo Go recent-project entry if the first open shows only the developer menu.
 
@@ -285,7 +289,7 @@ The `android` script binds Metro to IPv4 (`HOST=127.0.0.1`) so `adb reverse` wor
 
 Do not leave an orphaned `react-native-reanimated` install in `node_modules` after removing it from `package.json`. `react-native-gesture-handler` will auto-detect it, bundle Reanimated/Worklets, and Expo Go can crash with a native `libworklets.so` SIGSEGV on startup.
 
-The current mobile app loads supported pair metadata on Markets with loading, success, empty, error, and retry states. Live WebSocket pricing, favourites, search, and terminal functionality are not implemented yet.
+The current mobile app loads supported pair metadata on Markets with loading, success, empty, error, and retry states. Markets also supports local search/filter, persisted favourites, and metadata pull-to-refresh. Live WebSocket pricing and terminal functionality are not implemented yet.
 
 Mobile run commands require a running Android Emulator or connected device. Android validation confirms Markets renders five supported pairs from the backend with Terminal, Telemetry, and Settings tabs still available.
 
@@ -316,14 +320,16 @@ Current mobile test coverage:
 - Runtime API base URL validation and development fallback behavior.
 - HTTP client timeout, abort, and error mapping behavior.
 - Pair metadata API contract validation.
-- Markets metadata store load, retry, cancel, deduplication, and stale-response protection tests.
+- Markets metadata store load, retry, refresh, cancel, deduplication, and stale-response protection tests.
+- Pair filter helper tests.
+- Favourites repository validation, normalization, and storage failure tests.
+- Markets preferences store hydration, toggle, write-ordering, and race-protection tests.
 
 Planned validation layers:
 
 - WebSocket payload validation and live pricing integration on mobile.
 - Backend integration tests for local REST and WebSocket interfaces beyond current unit coverage.
-- Mobile persistence restoration and watchlist/search/details tests.
-- Mobile integration or component tests for favourites, offline status, reconnect, and pull-to-refresh.
+- Mobile integration or component tests for market details, offline status, and reconnect.
 - Manual Android Emulator screen recording for final delivery.
 
 ## Trade-offs considered
@@ -357,9 +363,10 @@ Current limitations:
 
 - Backend runtime exposes HTTP foundation routes, Binance ingestion, and WebSocket `market.snapshot.batch` broadcasting with slow-consumer protection.
 - Binance ingestion updates market state, and snapshots are broadcast locally to connected clients.
-- Mobile foundation includes Markets REST metadata loading plus Terminal, Telemetry, and Settings placeholder screens.
+- Mobile foundation includes Markets REST metadata loading, local search/filter, persisted favourites, and metadata pull-to-refresh, plus Terminal, Telemetry, and Settings placeholder screens.
 - Markets `high24h`, `low24h`, and `volume24h` values are backend assignment fixtures, not live exchange data.
-- Live WebSocket pricing, connection state, watchlist price/change, search, favourites, market details, persistence, offline/reconnect, pull-to-refresh, and animations are not implemented.
+- Live WebSocket pricing, connection state, watchlist price/change, market details, offline/reconnect, and animations are not implemented.
+- Favourite controls use temporary text labels until approved Figma assets are exported.
 - Android Expo Go launch is confirmed on `emulator-5554`: Markets renders five supported pairs from the backend with Terminal, Telemetry, and Settings tabs still available.
 - Tests cover backend foundation routes, market calculation/state/snapshot utilities, Binance ingestion, broadcaster behavior, client connection management, and mobile REST metadata modules.
 - No CI exists yet.

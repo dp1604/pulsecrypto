@@ -11,6 +11,7 @@ import {
 export type MarketsMetadataStore = MarketsMetadataState & {
   load: () => Promise<void>;
   retry: () => Promise<void>;
+  refresh: () => Promise<void>;
   cancel: () => void;
 };
 
@@ -18,6 +19,11 @@ type CreateMarketsMetadataStoreOptions = {
   fetchPairsMetaImpl?: typeof fetchPairsMeta;
   getApiBaseUrlImpl: () => string;
 };
+
+type FetchMode = "initial" | "refresh";
+
+const REFRESH_ERROR_MESSAGE =
+  "Unable to refresh pair metadata. Showing the last loaded list.";
 
 export const createMarketsMetadataStore = (
   options: CreateMarketsMetadataStoreOptions
@@ -30,12 +36,14 @@ export const createMarketsMetadataStore = (
   let nextRequestId = 0;
 
   return create<MarketsMetadataStore>((set, get) => {
-    const applySuccess = (items: PairMeta[]) => {
+    const applyInitialSuccess = (items: PairMeta[]) => {
       if (items.length === 0) {
         set({
           status: "empty",
           items: [],
           errorMessage: null,
+          refreshErrorMessage: null,
+          isRefreshing: false,
           lastLoadedAt: Date.now(),
           inFlightGeneration: null
         });
@@ -46,12 +54,53 @@ export const createMarketsMetadataStore = (
         status: "success",
         items,
         errorMessage: null,
+        refreshErrorMessage: null,
+        isRefreshing: false,
         lastLoadedAt: Date.now(),
         inFlightGeneration: null
       });
     };
 
-    const beginLoad = (force: boolean): Promise<void> => {
+    const applyRefreshSuccess = (items: PairMeta[]) => {
+      const existingItems = get().items;
+
+      if (items.length === 0) {
+        if (existingItems.length > 0) {
+          set({
+            status: "success",
+            refreshErrorMessage:
+              "Refresh returned no supported pairs. Showing the last loaded list.",
+            isRefreshing: false,
+            lastLoadedAt: Date.now(),
+            inFlightGeneration: null
+          });
+          return;
+        }
+
+        set({
+          status: "empty",
+          items: [],
+          errorMessage: null,
+          refreshErrorMessage: null,
+          isRefreshing: false,
+          lastLoadedAt: Date.now(),
+          inFlightGeneration: null
+        });
+        return;
+      }
+
+      set({
+        status: "success",
+        items,
+        errorMessage: null,
+        refreshErrorMessage: null,
+        isRefreshing: false,
+        lastLoadedAt: Date.now(),
+        inFlightGeneration: null
+      });
+    };
+
+    const beginFetch = (force: boolean, mode: FetchMode): Promise<void> => {
       if (!force && inFlightPromise) {
         return inFlightPromise;
       }
@@ -70,12 +119,23 @@ export const createMarketsMetadataStore = (
       activeRequestId = requestId;
       activeController = controller;
 
-      set({
-        requestGeneration,
-        inFlightGeneration: requestGeneration,
-        status: "loading",
-        errorMessage: null
-      });
+      if (mode === "initial") {
+        set({
+          requestGeneration,
+          inFlightGeneration: requestGeneration,
+          status: "loading",
+          errorMessage: null,
+          refreshErrorMessage: null,
+          isRefreshing: false
+        });
+      } else {
+        set({
+          requestGeneration,
+          inFlightGeneration: requestGeneration,
+          isRefreshing: true,
+          refreshErrorMessage: null
+        });
+      }
 
       const isCurrentRequest = () =>
         activeRequestId === requestId &&
@@ -96,20 +156,40 @@ export const createMarketsMetadataStore = (
             return;
           }
 
-          applySuccess(items);
+          if (mode === "initial") {
+            applyInitialSuccess(items);
+            return;
+          }
+
+          applyRefreshSuccess(items);
         } catch (error) {
           if (!isCurrentRequest()) {
             return;
           }
 
           if (isAbortError(error)) {
-            set({ inFlightGeneration: null });
+            set({
+              inFlightGeneration: null,
+              isRefreshing: false
+            });
+            return;
+          }
+
+          if (mode === "refresh" && get().items.length > 0) {
+            set({
+              status: "success",
+              refreshErrorMessage: REFRESH_ERROR_MESSAGE,
+              isRefreshing: false,
+              inFlightGeneration: null
+            });
             return;
           }
 
           set({
             status: "error",
             errorMessage: toUserFacingMessage(error),
+            refreshErrorMessage: null,
+            isRefreshing: false,
             inFlightGeneration: null
           });
         } finally {
@@ -131,8 +211,15 @@ export const createMarketsMetadataStore = (
 
     return {
       ...initialMarketsMetadataState,
-      load: () => beginLoad(false),
-      retry: () => beginLoad(true),
+      load: () => beginFetch(false, "initial"),
+      retry: () => beginFetch(true, "initial"),
+      refresh: () => {
+        if (get().items.length === 0) {
+          return beginFetch(false, "initial");
+        }
+
+        return beginFetch(false, "refresh");
+      },
       cancel: () => {
         const { items, requestGeneration } = get();
 
@@ -148,6 +235,8 @@ export const createMarketsMetadataStore = (
           requestGeneration: requestGeneration + 1,
           inFlightGeneration: null,
           errorMessage: null,
+          refreshErrorMessage: null,
+          isRefreshing: false,
           status: items.length > 0 ? "success" : "idle"
         });
       }
@@ -163,6 +252,13 @@ export const selectMarketsMetadataItems = (state: MarketsMetadataStore) =>
 
 export const selectMarketsMetadataError = (state: MarketsMetadataStore) =>
   state.errorMessage;
+
+export const selectMarketsMetadataRefreshError = (state: MarketsMetadataStore) =>
+  state.refreshErrorMessage;
+
+export const selectMarketsMetadataIsRefreshing = (
+  state: MarketsMetadataStore
+) => state.isRefreshing;
 
 export const selectMarketsMetadataLastLoadedAt = (
   state: MarketsMetadataStore

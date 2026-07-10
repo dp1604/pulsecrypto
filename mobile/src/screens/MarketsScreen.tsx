@@ -1,20 +1,31 @@
-import { memo, useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { PairMeta } from "@pulsecrypto/shared";
+import { filterPairs } from "../features/markets/filterPairs";
 import {
   selectMarketsMetadataError,
+  selectMarketsMetadataIsRefreshing,
   selectMarketsMetadataItems,
+  selectMarketsMetadataRefreshError,
   selectMarketsMetadataStatus
 } from "../features/markets/marketsMetadataStore";
 import { useMarketsMetadataStore } from "../features/markets/marketsMetadataStoreInstance";
+import {
+  selectFavouriteSymbols,
+  selectHydrationStatus,
+  selectPersistenceErrorMessage
+} from "../features/markets/marketsPreferencesStore";
+import { useMarketsPreferencesStore } from "../features/markets/marketsPreferencesStoreInstance";
 import { colors } from "../theme";
 
 const formatVolume = (value: number): string => {
@@ -31,31 +42,78 @@ const formatVolume = (value: number): string => {
   });
 };
 
-const PairMetadataRow = memo(({ item }: { item: PairMeta }) => (
-  <View style={styles.row}>
-    <View style={styles.rowHeader}>
-      <Text style={styles.pairLabel}>{item.displayName}</Text>
-      <Text style={styles.statusLabel}>{item.tradingStatus}</Text>
-    </View>
-    <Text style={styles.symbolLabel}>{item.pair}</Text>
-    <Text style={styles.metaLine}>
-      24h volume {formatVolume(item.volume24h)}
-    </Text>
-    <Text style={styles.metaLine}>
-      24h range {item.low24h.toLocaleString()} - {item.high24h.toLocaleString()}
-    </Text>
-  </View>
-));
+type PairMetadataRowProps = {
+  item: PairMeta;
+  isFavourite: boolean;
+  onToggleFavourite: (pair: string) => void;
+};
+
+const PairMetadataRow = memo(
+  ({ item, isFavourite, onToggleFavourite }: PairMetadataRowProps) => {
+    const favouriteLabel = isFavourite ? "Favourited" : "Favourite";
+
+    return (
+      <View style={styles.row}>
+        <View style={styles.rowHeader}>
+          <Text style={styles.pairLabel}>{item.displayName}</Text>
+          <Text style={styles.statusLabel}>{item.tradingStatus}</Text>
+        </View>
+        <Text style={styles.symbolLabel}>{item.pair}</Text>
+        <Text style={styles.metaLine}>
+          24h volume {formatVolume(item.volume24h)}
+        </Text>
+        <Text style={styles.metaLine}>
+          24h range {item.low24h.toLocaleString()} -{" "}
+          {item.high24h.toLocaleString()}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${favouriteLabel} ${item.displayName}`}
+          accessibilityState={{ selected: isFavourite }}
+          onPress={() => onToggleFavourite(item.pair)}
+          style={styles.favouriteButton}
+        >
+          <Text style={styles.favouriteButtonText}>{favouriteLabel}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+);
 
 PairMetadataRow.displayName = "PairMetadataRow";
 
 export const MarketsScreen = () => {
+  const [searchQuery, setSearchQuery] = useState("");
   const status = useMarketsMetadataStore(selectMarketsMetadataStatus);
   const items = useMarketsMetadataStore(selectMarketsMetadataItems);
   const errorMessage = useMarketsMetadataStore(selectMarketsMetadataError);
+  const refreshErrorMessage = useMarketsMetadataStore(
+    selectMarketsMetadataRefreshError
+  );
+  const isRefreshing = useMarketsMetadataStore(selectMarketsMetadataIsRefreshing);
   const load = useMarketsMetadataStore((state) => state.load);
   const retry = useMarketsMetadataStore((state) => state.retry);
+  const refresh = useMarketsMetadataStore((state) => state.refresh);
   const cancel = useMarketsMetadataStore((state) => state.cancel);
+  const favouriteSymbols = useMarketsPreferencesStore(selectFavouriteSymbols);
+  const hydrationStatus = useMarketsPreferencesStore(selectHydrationStatus);
+  const persistenceErrorMessage = useMarketsPreferencesStore(
+    selectPersistenceErrorMessage
+  );
+  const hydrate = useMarketsPreferencesStore((state) => state.hydrate);
+  const toggleFavourite = useMarketsPreferencesStore(
+    (state) => state.toggleFavourite
+  );
+
+  const favouriteSet = useMemo(
+    () => new Set(favouriteSymbols),
+    [favouriteSymbols]
+  );
+
+  const filteredItems = useMemo(
+    () => filterPairs(items, searchQuery),
+    [items, searchQuery]
+  );
 
   useEffect(() => {
     void load();
@@ -65,16 +123,39 @@ export const MarketsScreen = () => {
     };
   }, [load, cancel]);
 
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
+
   const handleRetry = useCallback(() => {
     void retry();
   }, [retry]);
 
+  const handleRefresh = useCallback(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleToggleFavourite = useCallback(
+    (pair: string) => {
+      void toggleFavourite(pair);
+    },
+    [toggleFavourite]
+  );
+
   const renderItem = useCallback(
-    ({ item }: { item: PairMeta }) => <PairMetadataRow item={item} />,
-    []
+    ({ item }: { item: PairMeta }) => (
+      <PairMetadataRow
+        item={item}
+        isFavourite={favouriteSet.has(item.pair)}
+        onToggleFavourite={handleToggleFavourite}
+      />
+    ),
+    [favouriteSet, handleToggleFavourite]
   );
 
   const keyExtractor = useCallback((item: PairMeta) => item.pair, []);
+
+  const showList = status === "success";
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -84,6 +165,41 @@ export const MarketsScreen = () => {
           Supported pair metadata from the PulseCrypto backend. Volume and range
           are assignment fixtures; live WebSocket pricing arrives later.
         </Text>
+
+        {status === "success" ? (
+          <TextInput
+            accessibilityLabel="Search supported pairs"
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setSearchQuery}
+            placeholder="Search pairs"
+            placeholderTextColor={colors.textMuted}
+            style={styles.searchInput}
+            value={searchQuery}
+          />
+        ) : null}
+
+        {persistenceErrorMessage ? (
+          <Text
+            accessibilityRole="alert"
+            style={styles.warningText}
+          >
+            {persistenceErrorMessage}
+          </Text>
+        ) : null}
+
+        {refreshErrorMessage ? (
+          <Text
+            accessibilityRole="alert"
+            style={styles.warningText}
+          >
+            {refreshErrorMessage}
+          </Text>
+        ) : null}
+
+        {hydrationStatus === "hydrating" ? (
+          <Text style={styles.helperText}>Restoring saved favourites…</Text>
+        ) : null}
 
         {status === "loading" || status === "idle" ? (
           <View
@@ -96,18 +212,36 @@ export const MarketsScreen = () => {
           </View>
         ) : null}
 
-        {status === "success" ? (
+        {showList ? (
           <FlatList
-            data={items}
+            data={filteredItems}
             keyExtractor={keyExtractor}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             accessibilityLabel="Supported pair metadata list"
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={colors.buy}
+                colors={[colors.buy]}
+              />
+            }
+            ListEmptyComponent={
+              searchQuery.trim().length > 0 ? (
+                <View style={styles.centeredState}>
+                  <Text style={styles.stateTitle}>No matching pairs</Text>
+                  <Text style={styles.stateText}>
+                    Try a different symbol or display name.
+                  </Text>
+                </View>
+              ) : null
+            }
           />
         ) : null}
 
-        {status === "empty" ? (
+        {status === "empty" && items.length === 0 ? (
           <View style={styles.centeredState}>
             <Text style={styles.stateTitle}>No supported pairs</Text>
             <Text style={styles.stateText}>
@@ -164,9 +298,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22
   },
+  searchInput: {
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    color: colors.textPrimary,
+    paddingHorizontal: 14,
+    fontSize: 16
+  },
+  helperText: {
+    color: colors.textMuted,
+    fontSize: 14
+  },
+  warningText: {
+    color: colors.warning,
+    fontSize: 14,
+    lineHeight: 20
+  },
   listContent: {
     paddingTop: 8,
-    paddingBottom: 24
+    paddingBottom: 24,
+    flexGrow: 1
   },
   row: {
     paddingVertical: 14,
@@ -198,6 +352,25 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20
+  },
+  favouriteButton: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    minHeight: 44,
+    minWidth: 120,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10
+  },
+  favouriteButtonText: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: "600"
   },
   separator: {
     height: 1,
