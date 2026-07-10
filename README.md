@@ -2,7 +2,7 @@
 
 PulseCrypto is a practical-assignment project for a Staff Engineer / Mobile Architect role. The final target is a real-time cryptocurrency market viewer with a Node.js + TypeScript backend gateway and a React Native mobile app running on Android Emulator.
 
-This repository currently has shared TypeScript contracts, a backend market gateway, and an Expo React Native mobile foundation. The backend exposes `GET /health`, `GET /pairs/meta`, and a local WebSocket server that sends `connection.ready` and `market.snapshot.batch` messages. The mobile app has navigation shell and dark-theme placeholders only; live market data, watchlist, favourites, and terminal views are not implemented yet.
+This repository currently has shared TypeScript contracts, a backend market gateway, and an Expo React Native mobile app. The backend exposes `GET /health`, `GET /pairs/meta`, and a local WebSocket server that sends `connection.ready` and `market.snapshot.batch` messages. The mobile app has navigation shell, dark-theme foundation, and Markets REST metadata loading from `GET /pairs/meta`. Live WebSocket pricing, watchlist, favourites, search, and terminal functionality are not implemented yet.
 
 ## What this project demonstrates
 
@@ -16,14 +16,14 @@ This repository currently has shared TypeScript contracts, a backend market gate
 
 | Area | Assignment requirement | Stage |
 | --- | --- | --- |
-| Backend | Node.js service that bridges Binance public market data to mobile clients | Backend gateway implemented; mobile consumer not implemented |
+| Backend | Node.js service that bridges Binance public market data to mobile clients | Backend gateway implemented; mobile consumes REST pair metadata |
 | Backend | TypeScript preferred, Express/Fastify or similar, WebSockets | Backend foundation implemented |
 | Backend | Subscribe to BTC/USDT, ETH/USDT, SOL/USDT, DOGE/USDT, XRP/USDT | Binance ingestion foundation implemented |
 | Backend | Ingest order book updates and batch processed updates | Implemented |
 | Backend | Configurable broadcast interval, default 100ms | Implemented |
 | Backend | Slow-consumer protection to prevent unbounded memory growth | Implemented |
 | Backend | `GET /pairs/meta` metadata endpoint | Implemented with mocked metadata |
-| Mobile | React Native app running on Android Emulator | Foundation scaffolded; Android UI launch confirmed on emulator |
+| Mobile | React Native app running on Android Emulator | Foundation plus Markets REST metadata; live WebSocket pricing pending |
 | Mobile | Watchlist with pair, price, 24h change, connection indicator, favourite toggle | Planned |
 | Mobile | Search/filter pairs | Planned |
 | Mobile | Persist and restore favourites locally | Planned |
@@ -40,7 +40,7 @@ P0 assignment requirements take priority over optional visual details from the F
 The planned system uses a monorepo with clear ownership boundaries:
 
 - `backend/`: implemented market gateway—REST health/metadata routes, WebSocket server, Binance stream ingestion, market-state utilities, and `market.snapshot.batch` broadcasting with slow-consumer protection.
-- `mobile/`: Expo React Native foundation with Markets, Terminal, Telemetry, and Settings placeholder screens. Live REST/WebSocket data, watchlist, favourites, and functional terminal UI are not implemented yet.
+- `mobile/`: Expo React Native foundation with Markets metadata loading from `GET /pairs/meta`, plus Terminal, Telemetry, and Settings placeholder screens. Live WebSocket pricing, favourites persistence, search, offline/reconnect, pull-to-refresh, price flash, and order-book animations are not implemented yet.
 - `packages/shared/`: shared contracts and constants only. It must not contain runtime side effects, backend services, mobile stores, or UI code.
 - `docs/`: architecture notes, ADRs, validation notes, assumptions, and implementation evidence.
 
@@ -49,7 +49,7 @@ The planned system uses a monorepo with clear ownership boundaries:
 ```text
 pulsecrypto/
   backend/                 # Node.js market gateway (REST, WebSocket, Binance ingestion)
-  mobile/                  # Expo React Native foundation (placeholder screens)
+  mobile/                  # Expo React Native app with Markets REST metadata
   packages/
     shared/                # Shared contracts and constants
   docs/
@@ -171,15 +171,16 @@ Current mobile foundation:
 
 - Expo SDK 57 TypeScript app under `mobile/` with bottom-tab navigation.
 - Default tab is Markets.
-- Terminal, Telemetry, and Settings are honest placeholder screens.
+- Markets loads supported pair metadata from `GET /pairs/meta` over REST with runtime validation against shared contracts.
+- Terminal, Telemetry, and Settings remain honest placeholder screens.
 - Dark Figma-aligned theme tokens are in place.
-- Live REST metadata, WebSocket market batches, favourites persistence, search, offline/reconnect, pull-to-refresh, price flash, and order-book animations are not implemented yet.
+- `high24h`, `low24h`, and `volume24h` shown on Markets are backend assignment fixtures, not live exchange values.
+- Live WebSocket pricing, connection state, watchlist price/change, favourites persistence, search, offline/reconnect, pull-to-refresh, price flash, and order-book animations are not implemented yet.
 - Authentication, API keys, and security UX are intentionally not implemented.
 - Android Expo Go launch on `PulseCrypto_API_35` is confirmed when started via `pnpm --filter @pulsecrypto/mobile android` (IPv4 Metro binding + `adb reverse`). Use the Expo Go recent-project entry if the first open shows only the developer menu.
 
 Planned mobile responsibilities:
 
-- Fetch pair metadata over REST.
 - Subscribe to live market updates over WebSocket.
 - Keep connection state separate from pair metadata, live market snapshots, UI filters, and local favourites.
 - Persist favourites locally and validate persisted data when restoring.
@@ -267,26 +268,36 @@ WebSocket: ws://localhost:3001
 Mobile foundation startup:
 
 ```bash
+pnpm dev:backend
 pnpm dev:mobile
 pnpm --filter @pulsecrypto/mobile android
 ```
 
-The `android` script binds Metro to IPv4 (`HOST=127.0.0.1`) so `adb reverse` works with Node 22 on macOS. If Expo Go shows the developer menu first, tap **Continue** or reopen **PulseCrypto** from recent history to reach the Markets shell.
+Mobile API configuration:
+
+```text
+EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000
+```
+
+Set `EXPO_PUBLIC_API_BASE_URL` when launching Metro for Android Emulator development. In development builds, Android falls back to `http://10.0.2.2:3000` when the variable is unset. Non-development builds require an explicit value.
+
+The `android` script binds Metro to IPv4 (`HOST=127.0.0.1`) so `adb reverse` works with Node 22 on macOS. If Expo Go shows the developer menu first, tap **Continue** or reopen **PulseCrypto** from recent history to reach the Markets screen.
 
 Do not leave an orphaned `react-native-reanimated` install in `node_modules` after removing it from `package.json`. `react-native-gesture-handler` will auto-detect it, bundle Reanimated/Worklets, and Expo Go can crash with a native `libworklets.so` SIGSEGV on startup.
 
-The current mobile app is a dark-themed navigation shell with Markets, Terminal, Telemetry, and Settings placeholders. It does not connect to backend REST/WebSocket data yet.
+The current mobile app loads supported pair metadata on Markets with loading, success, empty, error, and retry states. Live WebSocket pricing, favourites, search, and terminal functionality are not implemented yet.
 
-Mobile run commands require a running Android Emulator or connected device. Android UI launch on the assignment emulator should be treated as confirmed only after Markets and the four bottom tabs render in Expo Go.
+Mobile run commands require a running Android Emulator or connected device. Android validation confirms Markets renders five supported pairs from the backend with Terminal, Telemetry, and Settings tabs still available.
 
 ## Android Emulator networking notes
 
-When the mobile app is implemented, Android Emulator cannot reach the host machine through `localhost` inside the app. The app should use:
+The mobile app uses `EXPO_PUBLIC_API_BASE_URL` for backend access. On Android Emulator, development builds fall back to:
 
 ```text
 http://10.0.2.2:<backend-port>
-ws://10.0.2.2:<backend-port>
 ```
+
+When configured with a pathname prefix, the same prefix is preserved for REST calls such as `/pairs/meta`.
 
 Physical devices will need the host machine LAN IP or another reachable endpoint.
 
@@ -300,13 +311,20 @@ Current backend test coverage:
 - `MarketBroadcaster` batching, sequence, slow-consumer skip/close, and integration-style snapshot delivery tests.
 - `ClientConnectionManager` tracking, heartbeat, and shutdown cleanup tests.
 
+Current mobile test coverage:
+
+- Runtime API base URL validation and development fallback behavior.
+- HTTP client timeout, abort, and error mapping behavior.
+- Pair metadata API contract validation.
+- Markets metadata store load, retry, cancel, deduplication, and stale-response protection tests.
+
 Planned validation layers:
 
-- Contract validation for REST and WebSocket payloads on mobile.
+- WebSocket payload validation and live pricing integration on mobile.
 - Backend integration tests for local REST and WebSocket interfaces beyond current unit coverage.
-- Mobile unit tests for stores/selectors and persistence restoration.
-- Mobile integration or component tests for watchlist, search, favourites, details, offline status, reconnect, and pull-to-refresh.
-- Manual Android Emulator validation and screen recording for final delivery.
+- Mobile persistence restoration and watchlist/search/details tests.
+- Mobile integration or component tests for favourites, offline status, reconnect, and pull-to-refresh.
+- Manual Android Emulator screen recording for final delivery.
 
 ## Trade-offs considered
 
@@ -339,10 +357,11 @@ Current limitations:
 
 - Backend runtime exposes HTTP foundation routes, Binance ingestion, and WebSocket `market.snapshot.batch` broadcasting with slow-consumer protection.
 - Binance ingestion updates market state, and snapshots are broadcast locally to connected clients.
-- Mobile foundation is scaffolded with Markets, Terminal, Telemetry, and Settings placeholder screens.
-- Live REST/WebSocket market data, watchlist, search, favourites, market details, offline/reconnect, pull-to-refresh, and animations are not implemented.
-- Android Expo Go launch is confirmed on `emulator-5554`: Markets placeholder renders by default with Terminal, Telemetry, and Settings tabs.
-- Tests cover backend foundation routes, market calculation/state/snapshot utilities, Binance ingestion, broadcaster behavior, and client connection management.
+- Mobile foundation includes Markets REST metadata loading plus Terminal, Telemetry, and Settings placeholder screens.
+- Markets `high24h`, `low24h`, and `volume24h` values are backend assignment fixtures, not live exchange data.
+- Live WebSocket pricing, connection state, watchlist price/change, search, favourites, market details, persistence, offline/reconnect, pull-to-refresh, and animations are not implemented.
+- Android Expo Go launch is confirmed on `emulator-5554`: Markets renders five supported pairs from the backend with Terminal, Telemetry, and Settings tabs still available.
+- Tests cover backend foundation routes, market calculation/state/snapshot utilities, Binance ingestion, broadcaster behavior, client connection management, and mobile REST metadata modules.
 - No CI exists yet.
 
 Production hardening topics for later:
