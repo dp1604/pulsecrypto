@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Pressable,
   RefreshControl,
@@ -12,6 +13,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { PairMeta } from "@pulsecrypto/shared";
 import { filterPairs } from "../features/markets/filterPairs";
+import {
+  formatChange24hPercent,
+  formatConnectionStatusLabel,
+  formatLivePrice
+} from "../features/markets/liveMarketFormatting";
+import {
+  createSelectSnapshotByPair,
+  selectConnectionError,
+  selectConnectionStatus
+} from "../features/markets/marketsLiveStore";
+import { useMarketsLiveStore } from "../features/markets/marketsLiveStoreInstance";
 import {
   selectMarketsMetadataError,
   selectMarketsMetadataIsRefreshing,
@@ -50,7 +62,16 @@ type PairMetadataRowProps = {
 
 const PairMetadataRow = memo(
   ({ item, isFavourite, onToggleFavourite }: PairMetadataRowProps) => {
+    const snapshot = useMarketsLiveStore(
+      useMemo(() => createSelectSnapshotByPair(item.pair), [item.pair])
+    );
     const favouriteLabel = isFavourite ? "Favourited" : "Favourite";
+    const livePriceText = snapshot
+      ? formatLivePrice(snapshot.price)
+      : "Waiting for live data";
+    const liveChangeText = snapshot
+      ? formatChange24hPercent(snapshot.change24hPercent)
+      : "Waiting for live data";
 
     return (
       <View style={styles.row}>
@@ -59,6 +80,18 @@ const PairMetadataRow = memo(
           <Text style={styles.statusLabel}>{item.tradingStatus}</Text>
         </View>
         <Text style={styles.symbolLabel}>{item.pair}</Text>
+        <Text
+          accessibilityLabel={`${item.displayName} live price ${livePriceText}`}
+          style={styles.liveValue}
+        >
+          Live price {livePriceText}
+        </Text>
+        <Text
+          accessibilityLabel={`${item.displayName} 24 hour change ${liveChangeText}`}
+          style={styles.liveValue}
+        >
+          24h change {liveChangeText}
+        </Text>
         <Text style={styles.metaLine}>
           24h volume {formatVolume(item.volume24h)}
         </Text>
@@ -104,6 +137,12 @@ export const MarketsScreen = () => {
   const toggleFavourite = useMarketsPreferencesStore(
     (state) => state.toggleFavourite
   );
+  const connectionStatus = useMarketsLiveStore(selectConnectionStatus);
+  const connectionErrorMessage = useMarketsLiveStore(selectConnectionError);
+  const startLive = useMarketsLiveStore((state) => state.start);
+  const stopLive = useMarketsLiveStore((state) => state.stop);
+  const setLiveAppActive = useMarketsLiveStore((state) => state.setAppActive);
+  const reconnectLive = useMarketsLiveStore((state) => state.reconnectNow);
 
   const favouriteSet = useMemo(
     () => new Set(favouriteSymbols),
@@ -114,6 +153,11 @@ export const MarketsScreen = () => {
     () => filterPairs(items, searchQuery),
     [items, searchQuery]
   );
+
+  const connectionLabel = formatConnectionStatusLabel(connectionStatus);
+  const showReconnectAction =
+    connectionStatus === "reconnecting" ||
+    connectionStatus === "disconnected";
 
   useEffect(() => {
     void load();
@@ -127,6 +171,20 @@ export const MarketsScreen = () => {
     void hydrate();
   }, [hydrate]);
 
+  useEffect(() => {
+    setLiveAppActive(AppState.currentState === "active");
+    startLive();
+
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setLiveAppActive(nextState === "active");
+    });
+
+    return () => {
+      subscription.remove();
+      stopLive();
+    };
+  }, [startLive, stopLive, setLiveAppActive]);
+
   const handleRetry = useCallback(() => {
     void retry();
   }, [retry]);
@@ -134,6 +192,10 @@ export const MarketsScreen = () => {
   const handleRefresh = useCallback(() => {
     void refresh();
   }, [refresh]);
+
+  const handleReconnect = useCallback(() => {
+    reconnectLive();
+  }, [reconnectLive]);
 
   const handleToggleFavourite = useCallback(
     (pair: string) => {
@@ -163,8 +225,32 @@ export const MarketsScreen = () => {
         <Text style={styles.title}>Markets</Text>
         <Text style={styles.subtitle}>
           Supported pair metadata from the PulseCrypto backend. Volume and range
-          are assignment fixtures; live WebSocket pricing arrives later.
+          are assignment fixtures; live prices and 24-hour change come from the
+          validated WebSocket stream.
         </Text>
+
+        <Text
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={connectionLabel}
+          style={styles.connectionStatus}
+        >
+          {connectionLabel}
+        </Text>
+
+        {connectionErrorMessage ? (
+          <Text style={styles.warningText}>{connectionErrorMessage}</Text>
+        ) : null}
+
+        {showReconnectAction ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry live market connection"
+            onPress={handleReconnect}
+            style={styles.retryButton}
+          >
+            <Text style={styles.retryButtonText}>Retry connection</Text>
+          </Pressable>
+        ) : null}
 
         {status === "success" ? (
           <TextInput
@@ -298,6 +384,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22
   },
+  connectionStatus: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "600"
+  },
   searchInput: {
     minHeight: 44,
     borderRadius: 10,
@@ -348,6 +439,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13
   },
+  liveValue: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    lineHeight: 22
+  },
   metaLine: {
     color: colors.textSecondary,
     fontSize: 14,
@@ -395,7 +491,8 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   retryButton: {
-    marginTop: 8,
+    alignSelf: "flex-start",
+    marginTop: 0,
     minHeight: 44,
     minWidth: 120,
     borderRadius: 10,

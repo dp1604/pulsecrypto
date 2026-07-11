@@ -1,1 +1,2 @@
 export const DEFAULT_BACKEND_HTTP_PORT = 3000;
+export const DEFAULT_BACKEND_WS_PORT = 3001;
