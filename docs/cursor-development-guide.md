@@ -102,7 +102,7 @@ Every task report includes **remaining risks** when:
 
 - Validation was partial (emulator unavailable, network blocked, etc.)
 - Behavior is mocked or deferred
-- Performance was not measured under burst load
+- Performance risk remains after release profiling (see [final-validation.md](./final-validation.md))
 - A native module or Expo Go limitation was encountered
 
 Escalate to an ADR when the risk affects cross-cutting policy.
@@ -134,7 +134,7 @@ Mobile tasks that change runtime behavior must prove launch on the assignment em
 pnpm --filter @pulsecrypto/mobile android
 ```
 
-Use IPv4 Metro binding already configured in `mobile/package.json`. See README for Expo Go developer-menu behavior.
+Use IPv4 Metro binding already configured in `mobile/package.json`. Development validation uses `expo-dev-client`; final delivery also records optimized release APK evidence—see README and [final-validation.md](./final-validation.md).
 
 Evidence: screenshot path, `ReactNativeJS` log line or UI automation dump, Metro bundle line without red errors.
 

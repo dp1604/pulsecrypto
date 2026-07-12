@@ -31,7 +31,7 @@ pnpm test                        # always for behavior changes
 | WebSocket | Connection lifecycle, message shape, slow-consumer policy |
 | Binance adapters | Parser and reconnect policy tests; no live network in CI unit tests |
 
-Current baseline: 65 backend tests—new modules should extend coverage, not regress count silently.
+Current baseline: 65 backend tests and 435 mobile tests (500 workspace executions)—new modules should extend coverage, not regress count silently.
 
 ### Shared (`packages/shared/`)
 
@@ -45,7 +45,7 @@ Current baseline: 65 backend tests—new modules should extend coverage, not reg
 | Foundation | typecheck; manual Android emulator proof |
 | Stores / selectors | Unit tests for reducers, selectors, persistence validation |
 | Data layer | Contract validation tests for REST/WS payloads |
-| Screens | Component or integration tests for watchlist, search, favourites, offline—when implemented |
+| Screens | Component or integration tests for watchlist, search, favourites, offline, and Market Details presentation |
 
 Mobile Expo checks after dependency changes:
 
@@ -58,12 +58,13 @@ pnpm exec expo install --check
 
 Functional mobile UI changes require emulator evidence when the toolchain is available:
 
-- Metro bundles without red errors
-- `ReactNativeJS: Running "main"` or equivalent
+- Development client (`expo-dev-client`) or optimized release APK on assignment emulator
+- Metro bundles without red errors (development path)
 - Visual confirmation of target screen (screenshot + UI text dump)
 - Tab navigation smoke when navigation changes
+- Release validation evidence recorded in [final-validation.md](./final-validation.md)
 
-Document unverified launch explicitly in the task report.
+Document unverified launch explicitly in the task report. iOS Simulator validation remains deferred.
 
 ## What not to test (assignment scope)
 

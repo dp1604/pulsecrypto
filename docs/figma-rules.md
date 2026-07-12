@@ -30,14 +30,15 @@ For **every UI/UX implementation task**:
 
 If MCP is unavailable, implement assignment-required **behavior** with theme tokens, document visual delta, and do not imply pixel parity.
 
-## P0 surfaces (implement when mobile phase reaches them)
+## P0 surfaces (implemented)
 
 - Watchlist (pair, price, 24h change, connection indicator, favourite toggle)
 - Search / filter
 - Market details (price, pressure, spread, bids, asks, timestamp)
 - Offline / reconnect affordance
 - Pull-to-refresh metadata (without killing WebSocket stream)
-- Price flash and order-book motion where assignment requires smooth updates
+- Market Details LAST PRICE tick-direction animation; Order Book depth transitions; Market Depth presentation
+- Watchlist prices remain neutral without price flash (STEP-16B)
 
 ## Deferred unless explicitly promoted
 

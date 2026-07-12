@@ -50,7 +50,7 @@ Companion: [cursor-development-guide.md](./cursor-development-guide.md) · [test
 
 - [ ] Markets remains default tab unless task says otherwise
 - [ ] Emulator uses `10.0.2.2` for host backend—not `localhost` inside app
-- [ ] No `expo prebuild` / dev-client without approval
+- [ ] `expo prebuild` / dev-client / release APK only when task authorizes; generated native folders stay gitignored
 - [ ] Reanimated/worklets only with full Expo SDK–compatible setup
 
 ## Figma and UI

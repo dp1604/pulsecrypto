@@ -1,37 +1,50 @@
 # PulseCrypto Architecture Blueprint
 
-This blueprint describes the intended architecture and current implementation status. Shared contracts/constants, the backend market gateway, Binance ingestion, WebSocket snapshot broadcasting, and slow-consumer protection are implemented. The Expo React Native mobile foundation is scaffolded with placeholder screens; functional mobile data integration and assignment UI remain pending.
+This blueprint describes the implemented PulseCrypto assignment architecture and clearly separates production-hardening work that remains deferred.
 
 ## System Overview
 
-PulseCrypto will be a local real-time market viewer:
+PulseCrypto is a local real-time market viewer:
 
 1. The backend connects to Binance public market streams.
 2. The backend validates, normalizes, coalesces, and batches market data.
 3. The backend exposes local REST metadata and WebSocket market batches.
-4. The React Native app fetches metadata, subscribes to live batches, and renders watchlist/details screens.
+4. The React Native app fetches metadata, subscribes to live batches, and renders watchlist and Market Details screens.
 5. The mobile app persists favourites locally and keeps last-known market data visible during disconnects.
 
-Current status:
+## Current implementation status
 
-- Shared contracts/constants exist in `packages/shared/`.
-- Backend `GET /health` exists.
-- Backend `GET /pairs/meta` exists and returns mocked metadata for supported pairs.
-- Backend WebSocket server accepts clients, sends `connection.ready`, and broadcasts `market.snapshot.batch`.
-- Backend market calculation, latest-state store, and snapshot builder utilities exist and are covered by unit tests.
-- Binance combined-stream URL construction, defensive parser, reconnect policy, and upstream WebSocket ingestion are implemented and wired into `MarketStateStore`.
-- `MarketBroadcaster` emits validated `market.snapshot.batch` messages on a configurable interval (default 100ms).
-- Slow-consumer protection skips high-`bufferedAmount` sends, tracks consecutive slow ticks, and closes persistently slow clients without per-client queues.
-- Client heartbeat ping/pong removes dead connections.
-- Mobile foundation is scaffolded under `mobile/`: Expo SDK 57, bottom-tab navigation (Markets default, Terminal, Telemetry, Settings placeholders), dark theme tokens, Android Expo Go launch confirmed on emulator.
-- REST/WebSocket mobile data integration, watchlist, search, favourites, market details, offline/reconnect, pull-to-refresh, price flash, and order-book animations are not implemented.
+Implemented:
+
+- Shared contracts/constants in `packages/shared/`.
+- Backend `GET /health` and `GET /pairs/meta` (mocked metadata fixtures).
+- Backend WebSocket server with `connection.ready` and `market.snapshot.batch` broadcasting.
+- Binance combined-stream ingestion with defensive parsing and reconnect policy.
+- `MarketBroadcaster` at 100ms default interval with slow-consumer protection.
+- Client heartbeat ping/pong and bounded skip/close policy for slow consumers.
+- Expo SDK 57 mobile app with bottom-tab navigation (Markets default).
+- Markets REST metadata loading, local search/filter, AsyncStorage favourites, metadata pull-to-refresh.
+- Validated live WebSocket pricing with one mobile live store and 250ms visual publication coalescing.
+- Compact connection chip states and last-known snapshot retention during reconnect/pause.
+- Typed Markets → Market Details navigation with pair-specific selectors.
+- Figma-aligned Trading Terminal Market Details: LAST PRICE animation, Order Book, Market Depth.
+- One Watchlist-level Zustand subscription with ten display primitives and bounded five-pair `ScrollView`.
+- Neutral Watchlist prices; green/red 24h direction indicators.
+- Optimized Android release APK validated on API 35 emulator.
+- Terminal, Telemetry, and Settings remain honest placeholder screens.
+
+Deferred:
+
+- iOS project generation and Simulator validation.
+- Optional Figma-only surfaces (drawer, profile, API-key UI, security, functional telemetry).
+- CI, observability, and production transport hardening.
 
 ## Boundaries
 
-- `backend/`: Node.js + TypeScript backend market gateway, Binance adapters, stream processing, REST API, WebSocket server, and backpressure policy.
+- `backend/`: Node.js + TypeScript market gateway, Binance adapters, stream processing, REST API, WebSocket server, and backpressure policy.
 - `mobile/`: React Native app, navigation, UI, local persistence, connection lifecycle, rendering performance strategy.
-- `packages/shared/`: contracts, constants, schemas, and pure utilities that are safe for both backend and mobile.
-- `docs/`: architecture notes, ADRs, setup, validation evidence, assumptions, and trade-offs.
+- `packages/shared/`: contracts, constants, schemas, and pure utilities safe for both backend and mobile.
+- `docs/`: architecture notes, ADRs, validation evidence, assumptions, and trade-offs.
 
 Shared packages must not contain network clients, servers, UI components, persistent stores, or runtime side effects.
 
@@ -39,14 +52,17 @@ Shared packages must not contain network clients, servers, UI components, persis
 
 ```text
 Binance public streams
-  -> backend stream adapters
+  -> backend stream adapters (BinanceStreamClient)
   -> payload validation and normalization
-  -> per-pair latest-state cache
-  -> 100ms default batch scheduler
+  -> per-pair latest-state cache (MarketStateStore)
+  -> 100ms batch scheduler (MarketBroadcaster)
   -> compact WebSocket snapshot batch
-  -> mobile contract validation
-  -> mobile market state stores/selectors
-  -> watchlist and detail rendering
+  -> mobile contract validation (MarketSnapshotBatchMessageSchema)
+  -> one markets live store
+  -> 250ms display coalescer (marketDisplayCoalescer)
+  -> selector-based rendering
+  -> Watchlist batch selector OR Market Details pair selectors
+  -> watchlist rows / order book / market depth presentation
 ```
 
 Metadata flow:
@@ -54,18 +70,14 @@ Metadata flow:
 ```text
 mobile pull-to-refresh
   -> GET /pairs/meta
-  -> backend metadata provider, currently mocked
+  -> backend mocked metadata provider
   -> mobile metadata validation
-  -> metadata store update
+  -> metadata store update (does not interrupt WebSocket stream)
 ```
-
-The metadata refresh must not interrupt an active WebSocket stream.
-
-Mobile REST/WebSocket consumption and watchlist/detail rendering are not implemented yet. The foundation navigation shell and placeholders exist only.
 
 ## Binance Stream Strategy
 
-The backend builds and connects to Binance public combined streams for:
+The backend connects to Binance public combined streams for:
 
 - `BTCUSDT`
 - `ETHUSDT`
@@ -75,20 +87,19 @@ The backend builds and connects to Binance public combined streams for:
 
 The stream model combines partial-depth/order-book data with ticker-style market data so the backend can maintain price, 24h movement, spread, buy pressure, sell pressure, bids, asks, and timestamps.
 
-Binance data is external and untrusted. The parser validates shape and numeric ranges before updating market state. Full L2 diff-depth sequencing remains out of scope for this market viewer.
+Binance data is external and untrusted. The parser validates shape and numeric ranges before updating market state.
 
 ## WebSocket Batch Strategy
 
-The backend does not forward every raw update directly to mobile clients. Instead:
+The backend does not forward every raw update directly to mobile clients:
 
 - Maintain latest normalized state per pair.
 - Build all supported pair snapshots from latest state.
 - Broadcast snapshots in one compact `market.snapshot.batch` message on a configurable interval.
-- Use 100ms as the default interval (`MARKET_BROADCAST_INTERVAL_MS`).
-- Do not keep unbounded per-client queues.
+- Default interval: 100ms (`MARKET_BROADCAST_INTERVAL_MS`).
+- No unbounded per-client queues.
 - Check WebSocket `readyState` and `bufferedAmount` before sending.
-- Skip stale sends for slow clients.
-- Close persistently unhealthy clients after consecutive slow ticks.
+- Skip stale sends for slow clients; close persistently unhealthy clients after consecutive slow ticks.
 - Use heartbeat ping/pong.
 
 Batch envelope:
@@ -100,71 +111,108 @@ sequence: monotonically increasing number
 pairs: array of pair snapshots
 ```
 
-Each pair snapshot must identify `pair`, `displayName`, `price`, `change24hPercent`, `spread`, `buyPressure`, `sellPressure`, `bids`, `asks`, and `lastUpdated`.
+Each pair snapshot identifies `pair`, `displayName`, `price`, `change24hPercent`, `spread`, `buyPressure`, `sellPressure`, `bids`, `asks`, and `lastUpdated`.
 
-The current implementation broadcasts all supported pair snapshots each tick from latest state. Dirty-pair-only broadcasting remains a deferred bandwidth optimization. Mobile consumes neither REST nor WebSocket data yet; functional assignment screens remain pending.
+## Mobile State Strategy
 
-## Planned Mobile State Strategy
+Mobile state is separated by ownership and update frequency:
 
-Mobile state will be separated by ownership and update frequency:
+- connection state (WebSocket lifecycle controller)
+- pair metadata (`marketsMetadataStore`)
+- live market snapshots (`useMarketsLiveStore`)
+- local favourites (`marketsPreferencesStore`)
+- search/filter UI state (Markets screen-local)
+- detail-screen selection (navigation param: pair symbol)
 
-- connection state
-- pair metadata
-- live market snapshots
-- local favourites
-- search/filter UI state
-- detail-screen selection
+High-frequency updates flow through one live store. Rendering minimizes blast radius:
 
-High-frequency market updates should update only the affected pair records. Components should subscribe through selectors so unrelated rows and screens do not re-render.
+- **Watchlist:** one batch selector (`selectWatchlistDisplayValuesAll`) feeding ten display primitives across five rows.
+- **Market Details:** pair-specific selectors for price, order book, depth, and connection presentation.
+- **Visual publication:** 250ms coalescing decouples UI commits from 100ms backend cadence.
 
-Persisted favourites must be validated when restored. Additional persisted cached state requires explicit approval in a future task.
+Persisted favourites are validated on read. Additional persisted cached state requires explicit approval.
+
+## Watchlist rendering architecture (STEP-16B)
+
+Final Watchlist performance architecture:
+
+- `WatchlistRows` owns the bounded `ScrollView` for five supported pairs.
+- Exactly one `useMarketsLiveStore` subscription at Watchlist level.
+- `WatchlistLiveValues` is a pure prop-driven view (no store, no animation).
+- Watchlist primary prices remain neutral; 24h change uses directional color and ▲/▼.
+- Watchlist price flash/animation removed; Market Details LAST PRICE retains tick-direction color animation.
+
+## Market Details architecture
+
+Market Details reuses the existing WebSocket/live store with pair-specific selectors:
+
+- Compact Figma top app bar with connection chip
+- Animated LAST PRICE tick-direction text color
+- Inline signed 24h change with positive/negative color
+- REST fixture stats with `FIXTURE META` disclosure
+- Spread/pressure metrics strip
+- Bounded top-10 Order Book with directional depth bars
+- SVG Market Depth derived from the same bounded bid/ask levels
+
+Order Book geometry: bids anchor right and expand left; asks anchor left and expand right. Market Depth uses elevated true center-valley geometry with borderless/full-bleed presentation.
+
+## App-state lifecycle and reconnect
+
+- App backgrounding pauses WebSocket transport.
+- Foreground resume reconnects without clearing last-known snapshots.
+- Reconnect delay uses exponential backoff with jitter (delay capped; retries continue while lifecycle active).
+- Connection chip communicates `LIVE`, `SYNCING`, `CONNECTING`, `RECONNECTING`, `PAUSED`, `OFFLINE`.
+- `LAST KNOWN` badge during transient reconnect states.
+
+## Runtime strategy
+
+Accepted mobile runtime paths:
+
+- **Development:** Expo development build (`expo-dev-client`) with Metro and `adb reverse`.
+- **Release validation:** optimized local release APK on Android Emulator.
+
+Expo Go is not the accepted production-grade runtime path. Generated native folders (`mobile/android`, `mobile/ios`) are produced by CNG and remain gitignored.
+
+Local release evidence used emulator-local HTTP/WS and temporary generated-native cleartext settings. This is assignment validation only—not production transport policy.
+
+## Performance evidence
+
+Sustained release-runtime profiling completed (STEP-16B / STEP-16B-E1). Classification: **PASS_WITH_PERFORMANCE_RISK**.
+
+Key results (reported per workload, not averaged):
+
+- Idle sparse Watchlist: 63 frames, p99 23ms, 0 frozen
+- Controlled interaction: p99 57ms, max 61ms, 0 frozen
+- Mixed Watchlist: p99 113ms, max 150ms, 0 frozen, bounded memory
+- BTC Details: p99 77ms, max 133ms, 0 frozen, stable memory
+
+See [final-validation.md](./final-validation.md).
 
 ## Figma Usage
 
-The Pulse Crypto Figma mockup is the official UI/UX source of truth. For UI/UX tasks, Figma MCP is the primary inspection path—see [figma-rules.md](./figma-rules.md). Screenshots are fallback only.
+The Pulse Crypto Figma mockup is the official UI/UX source of truth. See [figma-rules.md](./figma-rules.md).
 
-Implementation order:
+Implemented P0 surfaces: watchlist, search/filter, favourites, Market Details, offline/reconnect affordance, pull-to-refresh, Figma tab/search assets.
 
-1. Required assignment flows and states.
-2. Figma styling and layout fidelity for those flows.
-3. Optional Figma-only surfaces, clearly labeled as P1/P2 or future.
-
-No fake Settings, profile, API-key, security, or telemetry behavior should be implemented solely because a visual appears in Figma.
+Deferred unless promoted: functional Settings, Telemetry dashboards, drawer navigation, profile/account, API-key/security UI, trading beyond viewing.
 
 ## Validation Gates
 
-Foundation gate:
+Foundation gate: PASS
 
-- Required docs and ADRs exist.
-- Workspace metadata is valid JSON/YAML.
-- Shared contracts typecheck.
-- Backend foundation typechecks.
-- Backend route tests pass.
-- No generated app artifacts are introduced.
+Backend gate: PASS (routes, broadcaster, Binance ingestion, slow-consumer policy tested)
 
-Backend gate:
+Mobile gate: PASS (P0 screens, reconnect, release APK, performance evidence with disclosed risk)
 
-- Type checks pass.
-- REST contract is validated.
-- WebSocket batches are validated.
-- Coalescing and slow-consumer behavior are tested.
-- Binance adapter handles invalid payloads and reconnect scenarios.
+Delivery gate: PASS (README, architecture, final-validation, submission-handoff, demo artifacts)
 
-Mobile gate (when mobile data layer and P0 screens are implemented):
+## Production hardening (planned)
 
-- App runs on Android Emulator.
-- Watchlist, search, favourites, details, offline, reconnect, and pull-to-refresh are validated.
-- State updates remain smooth under sustained backend update bursts.
-- Figma-required P0 screens are visually checked via MCP per [figma-rules.md](./figma-rules.md).
-
-Current mobile foundation gate (scaffold only):
-
-- Expo typecheck passes.
-- Android Expo Go launch confirmed with Markets default tab and four bottom tabs.
-- Placeholders labeled honestly; no live data claims.
-
-Delivery gate:
-
-- README documents setup, architecture, assumptions, trade-offs, and AI-assisted workflow.
-- Screen recording is produced.
-- Known limitations are explicit.
+- Runtime configuration schema and environment validation
+- Observability, metrics, structured logging
+- Binance stream gap handling beyond assignment scope
+- Rate limits, payload limits, WebSocket connection caps
+- Contract versioning and compatibility tests
+- Mobile crash reporting and performance instrumentation
+- CI for linting, typecheck, tests, and Android build validation
+- HTTPS/WSS production transport and network-security configuration

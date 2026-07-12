@@ -40,12 +40,13 @@ New tokens require justification in task report; prefer extending `colors.ts` ov
 - Partition state: connection, metadata, snapshots, favourites, UI filters—separate stores/selectors.
 - Components subscribe via **narrow selectors**; list items re-render only when their pair data changes.
 - Prefer **latest snapshot** display over animating every tick.
-- Price flash: short, state-driven; no infinite loops.
+- Watchlist primary prices remain neutral; 24h direction uses color and ▲/▼ without Watchlist price flash.
+- Market Details LAST PRICE retains brief tick-direction color animation; no infinite loops.
 - Order book: animate discrete updates; cap visible depth per assignment and performance review.
 
 ## Lists and search
 
-- Watchlist uses virtualized list when pair count exceeds trivial demo set.
+- Watchlist uses bounded `ScrollView` for the five supported pairs; virtualization deferred unless pair count grows.
 - Search/filter is client-side over metadata + live snapshot map unless ADR specifies server filter.
 - Favourite toggle must not block the render thread—optimistic UI with validated persistence.
 
@@ -81,14 +82,14 @@ Do not seed fake prices, fake auth, or fake API keys for visual fullness.
 
 - Backend base URL from device: `http://10.0.2.2:3000` (HTTP), `ws://10.0.2.2:3001` (WS)
 - Validate UI on `PulseCrypto_API_35` emulator when changing runtime UI
-- Expo Go developer menu on first launch is not a defect—see README
+- Expo development build (`expo-dev-client`) is the accepted development runtime; Expo Go is not the production-grade path—see README
 
 ## Assets and icons
 
 - Prefer Figma MCP exports into `mobile/assets/` per [figma-rules.md](./figma-rules.md).
 - Use Expo asset pipeline for bundled icons and splash.
 - No third-party icon packs unless task authorizes.
-- Tab icons may be text-only in foundation; upgrade with Figma-exported assets when implementing P0 screens.
+- Tab and search icons use Figma-exported assets from `mobile/assets/figma/` per [figma-asset-map.md](./figma-asset-map.md).
 
 ## Review criteria
 

@@ -1,8 +1,8 @@
 # PulseCrypto
 
-PulseCrypto is a practical-assignment project for a Staff Engineer / Mobile Architect role. The final target is a real-time cryptocurrency market viewer with a Node.js + TypeScript backend gateway and a React Native mobile app running on Android Emulator.
+PulseCrypto is a practical-assignment project for a Staff Engineer / Mobile Architect role: a real-time cryptocurrency market viewer with a Node.js + TypeScript backend gateway and a React Native mobile app validated on Android Emulator.
 
-This repository currently has shared TypeScript contracts, a backend market gateway, and an Expo React Native mobile app. The backend exposes `GET /health`, `GET /pairs/meta`, and a local WebSocket server that sends `connection.ready` and `market.snapshot.batch` messages. The mobile app has navigation shell, dark-theme foundation, Markets REST metadata loading from `GET /pairs/meta`, local pair search/filter, AsyncStorage-backed favourites, metadata pull-to-refresh, validated live WebSocket pricing with explicit connection status, live watchlist price and 24-hour change, bounded automatic reconnect, and foreground/background lifecycle handling. Market details, order-book UI, spread/pressure UI, price flash, and terminal functionality are not implemented yet.
+The repository delivers shared TypeScript contracts, a backend market gateway, and a complete Expo React Native mobile experience: Markets watchlist with live WebSocket pricing, search/filter, persisted favourites, pull-to-refresh metadata, bounded reconnect with last-known values, and Figma-aligned Market Details with animated LAST PRICE, Order Book, and Market Depth. Terminal, Telemetry, and Settings remain intentional placeholder screens.
 
 ## What this project demonstrates
 
@@ -14,378 +14,177 @@ This repository currently has shared TypeScript contracts, a backend market gate
 
 ## Requirements coverage
 
-| Area | Assignment requirement | Stage |
+| Area | Assignment requirement | Status |
 | --- | --- | --- |
-| Backend | Node.js service that bridges Binance public market data to mobile clients | Backend gateway implemented; mobile consumes REST pair metadata |
-| Backend | TypeScript preferred, Express/Fastify or similar, WebSockets | Backend foundation implemented |
-| Backend | Subscribe to BTC/USDT, ETH/USDT, SOL/USDT, DOGE/USDT, XRP/USDT | Binance ingestion foundation implemented |
-| Backend | Ingest order book updates and batch processed updates | Implemented |
-| Backend | Configurable broadcast interval, default 100ms | Implemented |
-| Backend | Slow-consumer protection to prevent unbounded memory growth | Implemented |
-| Backend | `GET /pairs/meta` metadata endpoint | Implemented with mocked metadata |
-| Mobile | React Native app running on Android Emulator | Foundation plus Markets REST metadata and live WebSocket pricing |
-| Mobile | Watchlist with pair, price, 24h change, connection indicator, favourite toggle | Metadata list with live price/change, text connection status, and text favourite toggle implemented |
-| Mobile | Search/filter pairs | Implemented on Markets with local query state |
-| Mobile | Persist and restore favourites locally | Implemented with versioned AsyncStorage payload |
-| Mobile | Market details with price, pressure, spread, bids, asks, timestamp | Planned |
-| Mobile | Live updates remain smooth during sustained bursts | Planned |
-| Mobile | Offline status, last-known data, automatic reconnect | Live reconnect with last-known values retained; explicit paused/reconnecting states implemented |
-| Mobile | Pull-to-refresh metadata without interrupting WebSocket stream | Metadata pull-to-refresh implemented; REST refresh does not replace the WebSocket connection |
-| Delivery | README with setup, architecture, assumptions, trade-offs, AI usage | In progress |
+| Backend gateway | Node.js service bridging Binance public data to mobile clients | **Implemented** |
+| Binance pairs | BTC/USDT, ETH/USDT, SOL/USDT, DOGE/USDT, XRP/USDT | **Implemented** |
+| Batching | Configurable broadcast interval, default 100ms | **Implemented** |
+| Slow-consumer protection | Prevent unbounded memory growth on slow WebSocket clients | **Implemented** |
+| Metadata | `GET /pairs/meta` endpoint | **Implemented** (fixtures disclosed) |
+| Android mobile | React Native on Android Emulator | **Implemented** and release-validated |
+| Watchlist | Pair, price, 24h change, connection indicator, favourite toggle | **Implemented** |
+| Search | Local pair search/filter | **Implemented** |
+| Favourites | Persist and restore locally | **Implemented** |
+| Details | Price, pressure, spread, bids, asks, timestamp | **Implemented** |
+| Reconnect/offline | Last-known data and automatic reconnect | **Implemented** |
+| Refresh | Pull-to-refresh metadata without interrupting WebSocket | **Implemented** |
+| Performance | Smooth updates under sustained bursts | **Validated** with disclosed risk |
+| Delivery documentation | README, architecture, assumptions, trade-offs, AI usage | **Complete** |
 
 P0 assignment requirements take priority over optional visual details from the Figma mockup.
 
+## Performance summary
+
+Release-runtime profiling on the optimized APK classified overall performance as **PASS_WITH_PERFORMANCE_RISK**:
+
+- Zero frozen frames across measured workloads
+- Idle sparse Watchlist p99: 23ms (63 frames at 1.4 fps — sparse commit model)
+- Controlled interaction p99: 57ms (max 61ms)
+- BTC Details p99: 77ms (max 133ms)
+- Representative mixed Watchlist p99: 113ms (max 150ms during scroll + search + refresh)
+- Memory remained bounded/stable
+- Elevated emulator/Android jank counters acknowledged as remaining risk
+
+See [docs/final-validation.md](docs/final-validation.md) for environment, workload table, and limitations. Do not treat modern jank percentage alone as failure when frame durations and responsiveness remain acceptable.
+
 ## Architecture overview
 
-The planned system uses a monorepo with clear ownership boundaries:
+Monorepo with clear ownership boundaries:
 
-- `backend/`: implemented market gateway—REST health/metadata routes, WebSocket server, Binance stream ingestion, market-state utilities, and `market.snapshot.batch` broadcasting with slow-consumer protection.
-- `mobile/`: Expo React Native foundation with Markets metadata loading from `GET /pairs/meta`, local pair search/filter, AsyncStorage-backed favourites, metadata pull-to-refresh, validated live WebSocket pricing with explicit connection status, and Terminal, Telemetry, and Settings placeholder screens. Market details, price flash, and order-book animations are not implemented yet.
-- `packages/shared/`: shared contracts and constants only. It must not contain runtime side effects, backend services, mobile stores, or UI code.
-- `docs/`: architecture notes, ADRs, validation notes, assumptions, and implementation evidence.
+- `backend/`: REST health/metadata routes, WebSocket server, Binance stream ingestion, latest-state store, 100ms `market.snapshot.batch` broadcasting, slow-consumer protection.
+- `mobile/`: Expo React Native app with one live store, 250ms visual publication coalescing, one Watchlist-level batch subscription (ten display primitives), bounded five-pair `ScrollView`, Market Details with animated LAST PRICE, Order Book, Market Depth, and placeholder Terminal/Telemetry/Settings screens.
+- `packages/shared/`: shared contracts and constants only — no runtime side effects.
+- `docs/`: architecture notes, ADRs, final validation, and submission handoff.
+
+Final Watchlist architecture (STEP-16B):
+
+- One `useMarketsLiveStore` subscription at Watchlist level
+- Ten display primitives (price + 24h change × 5 pairs)
+- Pure prop-driven `WatchlistLiveValues` rows
+- Neutral Watchlist prices; green/red 24h direction with ▲/▼
+- Watchlist price flash removed; Market Details alone retains tick-direction animation
 
 ## Repository structure
 
 ```text
 pulsecrypto/
-  backend/                 # Node.js market gateway (REST, WebSocket, Binance ingestion)
-  mobile/                  # Expo React Native app with Markets REST metadata
-  packages/
-    shared/                # Shared contracts and constants
+  backend/                 # Node.js market gateway
+  mobile/                  # Expo React Native app
+  packages/shared/         # Shared contracts and constants
   docs/
-    architecture.md        # Architecture blueprint
+    architecture.md
+    final-validation.md
+    submission-handoff.md
     decisions/             # ADRs
-    architecture-principles.md
-    cursor-development-guide.md
-    review-checklist.md
-    reporting-template.md
-    testing-standard.md
-    figma-rules.md
-    ui-guidelines.md
-  AGENTS.md                # AI coding guardrails (enforcement index)
-  package.json             # Root workspace metadata only
-  pnpm-workspace.yaml      # Workspace layout
+  AGENTS.md
+  package.json
+  pnpm-workspace.yaml
 ```
 
 ## Backend design
 
-Current backend foundation:
-
-- Fastify HTTP server with `GET /health`.
-- Fastify HTTP server with `GET /pairs/meta`.
-- Metadata is currently mocked and generated from shared supported-pair constants.
-- WebSocket server accepts client connections, sends `connection.ready`, and broadcasts validated `market.snapshot.batch` messages.
-- Shared TypeScript contracts define supported pairs, REST metadata, and market snapshot batch messages.
-- Backend market calculation, latest-state store, and snapshot builder utilities exist with unit tests.
-- Binance combined-stream URL construction, defensive message parsing, reconnect policy, and upstream WebSocket ingestion are implemented and wired into `MarketStateStore`.
-- `MarketBroadcaster` emits latest-state snapshot batches on a configurable interval (default 100ms).
-- Slow-consumer protection skips sends when `bufferedAmount` is high, tracks consecutive slow ticks, and closes persistently slow clients. No per-client queues are maintained.
-- Client heartbeat ping/pong removes dead WebSocket connections.
-
-Planned backend responsibilities:
-
-- Bound memory and connection resources under sustained update bursts beyond the current defaults.
-
-## Stream processing and backpressure
-
-The backend uses latest-state coalescing:
-
-- Binance may emit updates faster than the mobile UI should render.
-- The backend keeps the most recent processed state per pair in `MarketStateStore`.
-- `MarketBroadcaster` emits a compact `market.snapshot.batch` on a configurable interval. The default is 100ms (`MARKET_BROADCAST_INTERVAL_MS`).
-- The backend does not forward every raw Binance event and does not keep unbounded per-client queues.
-- Slow-consumer protection checks WebSocket `readyState` and `bufferedAmount` before each send.
-- If `bufferedAmount` exceeds `WS_MAX_BUFFERED_AMOUNT_BYTES` (default 1,000,000), that client is skipped for the tick.
-- Consecutive skipped ticks are tracked per client. After `WS_MAX_CONSECUTIVE_SLOW_TICKS` (default 5), the client is closed and removed.
-- Heartbeat ping/pong runs on `WS_HEARTBEAT_INTERVAL_MS` (default 30,000ms) and closes clients that stop responding.
-
-The implementation documents this policy in code, tests, and ADR-003.
-
-## WebSocket contract
-
-The backend currently sends this batched message shape to connected clients:
-
-```json
-{
-  "type": "market.snapshot.batch",
-  "sentAt": 1720802025000,
-  "sequence": 42,
-  "pairs": [
-    {
-      "pair": "BTCUSDT",
-      "displayName": "BTC / USDT",
-      "price": 109235.42,
-      "change24hPercent": 1.82,
-      "spread": 0.41,
-      "buyPressure": 63,
-      "sellPressure": 37,
-      "bids": [],
-      "asks": [],
-      "lastUpdated": 1720802025000
-    }
-  ]
-}
-```
-
-Contract requirements:
-
-- The envelope uses `type: "market.snapshot.batch"`.
-- `sentAt` is a Unix epoch timestamp in milliseconds.
-- `sequence` is a monotonically increasing number.
-- `pairs` contains pair snapshots.
-- Every pair snapshot identifies `pair`, `displayName`, `price`, `change24hPercent`, `spread`, `buyPressure`, `sellPressure`, `bids`, `asks`, and `lastUpdated`.
-- Mobile code validates incoming messages before updating state.
-- Unknown fields are ignored unless explicitly promoted into the contract.
-
-## REST contract
-
-Implemented endpoint:
-
-```http
-GET /pairs/meta
-```
-
-Response shape:
-
-```json
-{
-  "pairs": [
-    {
-      "pair": "BTCUSDT",
-      "displayName": "BTC / USDT",
-      "tradingStatus": "TRADING",
-      "high24h": 110000,
-      "low24h": 105000,
-      "volume24h": 12345.67
-    }
-  ]
-}
-```
-
-The assignment allows this metadata to be mocked. If mocked values are used, they must be labeled clearly in code and documentation.
-At this stage, the backend returns mocked metadata for all supported pairs.
+- Fastify HTTP with `GET /health` and `GET /pairs/meta`.
+- Mocked metadata generated from shared supported-pair constants (disclosed in UI/docs).
+- WebSocket server sends `connection.ready` and validated `market.snapshot.batch` messages.
+- Binance combined-stream ingestion with defensive parsing and reconnect policy.
+- `MarketBroadcaster` emits latest-state batches every 100ms by default.
+- Slow-consumer protection skips high-`bufferedAmount` sends and closes persistently slow clients.
+- Client heartbeat ping/pong removes dead connections.
 
 ## Mobile architecture
 
-Current mobile foundation:
+- Expo SDK 57 with bottom-tab navigation (Markets default).
+- Markets loads metadata from REST; live pricing from validated WebSocket batches.
+- One `useMarketsLiveStore`; 250ms `marketDisplayCoalescer` for visual publication.
+- `WatchlistRows` provides one batch subscription and bounded `ScrollView` for five pairs.
+- Connection chip: `LIVE`, `SYNCING`, `CONNECTING`, `RECONNECTING`, `PAUSED`, `OFFLINE`.
+- Last-known snapshots retained during reconnect; metadata refresh is REST-only.
+- Market Details: Figma top app bar, animated LAST PRICE, fixture stats, Order Book, Market Depth.
+- Figma tab/search icons from `mobile/assets/figma/` — see [docs/figma-asset-map.md](docs/figma-asset-map.md).
+- `expo-dev-client` for development; optimized release APK for final validation.
+- **iOS not validated.** Android Emulator (`PulseCrypto_API_35`) is the assignment runtime.
+- Authentication, API keys, trading, and functional Settings/Telemetry are not implemented.
 
-- Expo SDK 57 TypeScript app under `mobile/` with bottom-tab navigation.
-- Default tab is Markets.
-- Markets loads supported pair metadata from `GET /pairs/meta` over REST with runtime validation against shared contracts.
-- Markets supports local pair search/filter with screen-local query state.
-- Favourites persist in AsyncStorage under a versioned key and restore after process restart.
-- Metadata pull-to-refresh retains the current list on transient failure and replaces metadata atomically on success.
-- Favourite row controls use accessible text labels (`Favourite` / `Favourited`) until approved Figma assets are exported.
-- Markets shows validated live price and 24-hour percentage change per pair from `market.snapshot.batch`.
-- Markets shows an explicit text connection status (`Connecting`, `Connected, waiting for data`, `Live`, `Reconnecting`, `Paused`, `Disconnected`).
-- Live market snapshots are stored in a dedicated live store separate from metadata and favourites.
-- Incoming WebSocket payloads are validated with `MarketSnapshotBatchMessageSchema` before state updates.
-- Bounded automatic reconnect uses exponential backoff with jitter while the Markets lifecycle is active.
-- App backgrounding pauses the WebSocket transport; foreground resume reconnects without clearing last-known snapshots.
-- Metadata pull-to-refresh remains REST-only and does not restart or replace the WebSocket connection.
-- Terminal, Telemetry, and Settings remain honest placeholder screens.
-- Dark Figma-aligned theme tokens are in place.
-- `high24h`, `low24h`, and `volume24h` shown on Markets are backend assignment fixtures, not live exchange values.
-- Market details, spread/pressure UI, price flash, and order-book animations are not implemented yet.
-- Authentication, API keys, and security UX are intentionally not implemented.
-- Android Expo Go launch on `PulseCrypto_API_35` is confirmed when started via `pnpm --filter @pulsecrypto/mobile android` (IPv4 Metro binding + `adb reverse`). Use the Expo Go recent-project entry if the first open shows only the developer menu.
+## UI reference
 
-Planned mobile responsibilities:
+Figma mockup: https://www.figma.com/design/JYfr5h2vC9IFKtX3vasmZk/Pulse-Crypto-Mockup?node-id=0-1&p=f
 
-- Market details screen with order book, spread, and pressure.
-- Price flash and richer offline UX polish.
-- Persist favourites locally and validate persisted data when restoring.
-- Use selector-based rendering so high-frequency updates do not force unrelated UI to re-render.
+Optional Figma-only surfaces (drawer, profile, API-key UI, shaders, functional telemetry) remain deferred.
 
-## UI reference and Figma mapping
+## Setup and run
 
-The Pulse Crypto Figma mockup is the official UI/UX source of truth:
-
-https://www.figma.com/design/JYfr5h2vC9IFKtX3vasmZk/Pulse-Crypto-Mockup?node-id=0-1&p=f
-
-Planned workflow (when implementing P0 mobile UI):
-
-- Inspect Figma through Figma MCP before implementing—see [docs/figma-rules.md](docs/figma-rules.md).
-- Use exported Figma icons, SVGs, and images; screenshots are fallback only.
-- Map required assignment screens first: watchlist, search/filter, favourites, market details, offline/reconnect status, and pull-to-refresh metadata.
-- Treat Figma-only items such as Settings, drawer, profile, API-key UI, telemetry, visual shaders, or security-themed surfaces as P1/P2 or future unless the assignment explicitly requires them.
-- Do not implement fake functionality just because it appears in the mockup.
-
-## Performance strategy
-
-Planned performance priorities:
-
-- Backend coalesces updates before broadcasting to reduce message volume.
-- WebSocket payloads are bounded and predictable.
-- Mobile state is partitioned to minimize re-render blast radius.
-- Price and order-book animations are brief and state-driven.
-- Lists use virtualization when pair count grows beyond the minimum assignment scope.
-- Validation avoids expensive work in render paths.
-
-## Offline and reconnect behavior
-
-Implemented mobile behavior:
-
-- Show explicit text connection status.
-- Keep rendering the most recently received valid market data while reconnecting or paused.
-- Reconnect automatically with bounded exponential backoff and jitter.
-- Avoid clearing user favourites or metadata solely because the socket disconnected.
-- Allow pull-to-refresh for metadata without closing or replacing an active WebSocket stream.
-
-## Security and trust boundaries
-
-PulseCrypto uses public market data for the assignment. No authentication, profile, account, trading, API-key, or secure-wallet capability is implemented or claimed.
-
-Trust boundaries:
-
-- Binance stream payloads are external and untrusted.
-- Backend REST and WebSocket payloads are untrusted by the mobile app until validated.
-- Persisted favourites are untrusted on read.
-- Environment variables and local config must not be committed.
-
-## Setup and run instructions
-
-Current validation (backend + shared + mobile foundation):
+### Static validation
 
 ```bash
-pnpm install
+CI=1 pnpm install --frozen-lockfile --reporter=append-only
 pnpm typecheck
 pnpm test
 cd mobile && pnpm dlx expo-doctor
 pnpm exec expo install --check
 ```
 
-Backend development startup:
+### Backend
 
 ```bash
 pnpm dev:backend
 ```
 
-Backend Binance ingestion configuration:
+Default endpoints: `http://localhost:3000` (HTTP), `ws://localhost:3001` (WS).
 
-```text
-BINANCE_ENABLED=false          # Optional; default is true
-BINANCE_STREAM_BASE_URL=...    # Optional; default is wss://stream.binance.com:9443
-```
-
-Default local endpoints:
-
-```text
-HTTP: http://localhost:3000
-WebSocket: ws://localhost:3001
-```
-
-Mobile foundation startup:
+### Mobile development client
 
 ```bash
 pnpm dev:backend
-pnpm dev:mobile
-pnpm --filter @pulsecrypto/mobile android
+cd mobile
+CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android   # first time or native dep change
+CI=1 pnpm exec expo run:android --device emulator-5554 --variant debug
+pnpm exec expo start --dev-client --localhost --port 8081
 ```
 
-Mobile API configuration:
+Environment (with `adb reverse`):
 
 ```text
-EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000
-EXPO_PUBLIC_WS_URL=ws://10.0.2.2:3001
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3000
+EXPO_PUBLIC_WS_URL=ws://127.0.0.1:3001
 ```
 
-Set `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_WS_URL` when launching Metro for Android Emulator development. In development builds, Android falls back to `http://10.0.2.2:3000` and `ws://10.0.2.2:3001` when the variables are unset. iOS Simulator and other local development fall back to `http://127.0.0.1:3000` and `ws://127.0.0.1:3001`. Non-development builds require explicit values and `wss:` for WebSocket transport.
+Generated native folders (`mobile/android`, `mobile/ios`) are gitignored.
 
-The `android` script binds Metro to IPv4 (`HOST=127.0.0.1`) so `adb reverse` works with Node 22 on macOS. If Expo Go shows the developer menu first, tap **Continue** or reopen **PulseCrypto** from recent history to reach the Markets screen.
+### Optimized release APK
 
-Do not leave an orphaned `react-native-reanimated` install in `node_modules` after removing it from `package.json`. `react-native-gesture-handler` will auto-detect it, bundle Reanimated/Worklets, and Expo Go can crash with a native `libworklets.so` SIGSEGV on startup.
+SHA-256: `8985e7babce6a343f225be1f6cec4e780a510051110b9e31b191a782b02a2d71`
 
-The current mobile app loads supported pair metadata on Markets with loading, success, empty, error, and retry states. Markets also supports local search/filter, persisted favourites, metadata pull-to-refresh, validated live WebSocket pricing, explicit connection status, and live 24-hour change. Market details and terminal functionality are not implemented yet.
+Local release evidence used emulator-local HTTP/WS and temporary generated-native cleartext settings. This is assignment validation only—not production transport policy.
 
-Mobile run commands require a running Android Emulator or connected device. Android validation confirms Markets renders five supported pairs from the backend with Terminal, Telemetry, and Settings tabs still available.
+## Testing
 
-## Android Emulator networking notes
+- Backend: 65 tests (routes, market math, Binance ingestion, broadcaster, connection manager)
+- Mobile: 435 tests (stores, WebSocket, formatting, presentation, navigation, persistence)
+- Workspace: 500 test executions
 
-The mobile app uses `EXPO_PUBLIC_API_BASE_URL` for backend access and `EXPO_PUBLIC_WS_URL` for live market transport. On Android Emulator, development builds fall back to:
+## Trade-offs
 
-```text
-http://10.0.2.2:<backend-http-port>
-ws://10.0.2.2:<backend-ws-port>
-```
+- Latest-state coalescing sacrifices every-tick fidelity for bounded UI-friendly updates.
+- Backend gateway keeps mobile simpler and avoids direct Binance coupling.
+- Mocked metadata is acceptable by assignment scope and clearly disclosed.
+- Market Details passes only pair symbol; live store remains source of truth.
+- Order book bounded to top 10 levels for mobile readability.
+- Figma fidelity matters, but P0 functional behavior takes precedence over optional chrome.
 
-When configured with a pathname prefix, the same prefix is preserved for REST calls such as `/pairs/meta`.
+## AI-assisted development
 
-Physical devices will need the host machine LAN IP or another reachable endpoint.
+Governance: `AGENTS.md`, [docs/cursor-development-guide.md](docs/cursor-development-guide.md), ADR-007, and companion docs in `docs/`.
 
-## Testing and validation
+## Known limitations
 
-Current backend test coverage:
+- Settings, Telemetry, Terminal trading: placeholders only
+- iOS: not generated or validated
+- Metadata high/low/volume: backend fixtures, not live exchange data
+- Performance: PASS_WITH_PERFORMANCE_RISK (mixed Watchlist p99 113ms tail)
+- No CI yet
+- Production hardening (HTTPS/WSS, observability, crash reporting) deferred
 
-- Backend foundation route tests for `GET /health` and `GET /pairs/meta`.
-- Market calculation, latest-state store, and snapshot builder unit tests.
-- Binance stream-name construction, combined-message parser, reconnect delay policy, and `BinanceStreamClient` behavior tests.
-- `MarketBroadcaster` batching, sequence, slow-consumer skip/close, and integration-style snapshot delivery tests.
-- `ClientConnectionManager` tracking, heartbeat, and shutdown cleanup tests.
+## Delivery documents
 
-Current mobile test coverage:
-
-- Runtime API base URL and WebSocket URL validation with development fallback behavior.
-- HTTP client timeout, abort, and error mapping behavior.
-- Pair metadata API contract validation.
-- Markets metadata store load, retry, refresh, cancel, deduplication, and stale-response protection tests.
-- Live market WebSocket message parsing, lifecycle controller, live store, and formatting tests.
-- Pair filter helper tests.
-- Favourites repository validation, normalization, and storage failure tests.
-- Markets preferences store hydration, toggle, write-ordering, and race-protection tests.
-
-Planned validation layers:
-
-- Market details and order-book mobile integration tests.
-- Backend integration tests for local REST and WebSocket interfaces beyond current unit coverage.
-- Mobile integration or component tests for market details and richer offline status.
-- Manual Android Emulator screen recording for final delivery.
-
-## Trade-offs considered
-
-- Latest-state coalescing sacrifices every-tick fidelity in favor of bounded, UI-friendly updates.
-- A local backend gateway keeps mobile code simpler and avoids direct Binance coupling.
-- A monorepo improves contract sharing and reviewability for a small assignment, while preserving backend/mobile boundaries.
-- Mocked metadata is acceptable by assignment scope, but live or periodically refreshed metadata may be preferable in production.
-- Figma fidelity matters, but P0 functional behavior takes precedence over optional visual-only elements.
-
-## AI-assisted development workflow
-
-AI assistance is allowed by the assignment and expected by the role context. Governance is centralized in `AGENTS.md` and `docs/`:
-
-| Document | Purpose |
-| --- | --- |
-| [AGENTS.md](AGENTS.md) | Non-negotiable agent rules |
-| [docs/cursor-development-guide.md](docs/cursor-development-guide.md) | Cursor sessions, ChatGPT review, Living Governance |
-| [docs/architecture-principles.md](docs/architecture-principles.md) | Engineering and architecture philosophy |
-| [docs/testing-standard.md](docs/testing-standard.md) | Verification and Android/Expo gates |
-| [docs/review-checklist.md](docs/review-checklist.md) | Pre-commit review |
-| [docs/reporting-template.md](docs/reporting-template.md) | Mandatory task reports, proof artifacts, review ZIP |
-| [docs/figma-rules.md](docs/figma-rules.md) | Figma MCP and P0 UI scope |
-| [docs/ui-guidelines.md](docs/ui-guidelines.md) | Mobile UI and performance |
-
-ADR-007 summarizes AI guardrails; operational detail lives in the documents above.
-
-## Known limitations and production hardening
-
-Current limitations:
-
-- Backend runtime exposes HTTP foundation routes, Binance ingestion, and WebSocket `market.snapshot.batch` broadcasting with slow-consumer protection.
-- Binance ingestion updates market state, and snapshots are broadcast locally to connected clients.
-- Mobile foundation includes Markets REST metadata loading, local search/filter, persisted favourites, metadata pull-to-refresh, validated live WebSocket pricing, explicit connection status, bounded reconnect, and Terminal, Telemetry, and Settings placeholder screens.
-- Markets `high24h`, `low24h`, and `volume24h` values are backend assignment fixtures, not live exchange data.
-- Market details, spread/pressure UI, price flash, and animations are not implemented.
-- Favourite controls use temporary text labels until approved Figma assets are exported.
-- Android Expo Go launch is confirmed on `emulator-5554`: Markets renders five supported pairs from the backend with Terminal, Telemetry, and Settings tabs still available.
-- Tests cover backend foundation routes, market calculation/state/snapshot utilities, Binance ingestion, broadcaster behavior, client connection management, and mobile REST metadata modules.
-- No CI exists yet.
-
-Production hardening topics for later:
-
-- Runtime configuration schema and environment validation.
-- Observability, metrics, structured logging, and health checks.
-- Binance reconnect/resubscribe policy and stream gap handling.
-- Rate limits, payload limits, and WebSocket connection caps.
-- Contract versioning and compatibility tests.
-- Mobile crash reporting and performance instrumentation.
-- CI for linting, type checking, tests, and Android build validation.
+- [docs/final-validation.md](docs/final-validation.md) — validation environment, performance table, limitations
+- [docs/submission-handoff.md](docs/submission-handoff.md) — reviewer entry points, run instructions, demo flow
