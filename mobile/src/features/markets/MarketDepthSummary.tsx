@@ -116,6 +116,14 @@ export const MarketDepthSummary = ({
           viewBox={MARKET_DEPTH_SVG_VIEW_BOX}
           width="100%"
         >
+          <Line
+            stroke={colors.border}
+            strokeWidth={MARKET_DEPTH_LINE_STROKE_WIDTH}
+            x1={MARKET_DEPTH_CENTER_DIVIDER_X}
+            x2={MARKET_DEPTH_CENTER_DIVIDER_X}
+            y1={MARKET_DEPTH_DIVIDER_Y_TOP}
+            y2={MARKET_DEPTH_DIVIDER_Y_BOTTOM}
+          />
           {chart.bidAreaPath ? (
             <Path d={chart.bidAreaPath} fill={colors.buy} fillOpacity={0.34} />
           ) : null}
@@ -127,6 +135,8 @@ export const MarketDepthSummary = ({
               d={chart.bidLinePath}
               fill="none"
               stroke={colors.buy}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               strokeOpacity={0.55}
               strokeWidth={MARKET_DEPTH_LINE_STROKE_WIDTH}
             />
@@ -136,18 +146,12 @@ export const MarketDepthSummary = ({
               d={chart.askLinePath}
               fill="none"
               stroke={colors.sell}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               strokeOpacity={0.55}
               strokeWidth={MARKET_DEPTH_LINE_STROKE_WIDTH}
             />
           ) : null}
-          <Line
-            stroke={colors.border}
-            strokeWidth={MARKET_DEPTH_LINE_STROKE_WIDTH}
-            x1={MARKET_DEPTH_CENTER_DIVIDER_X}
-            x2={MARKET_DEPTH_CENTER_DIVIDER_X}
-            y1={MARKET_DEPTH_DIVIDER_Y_TOP}
-            y2={MARKET_DEPTH_DIVIDER_Y_BOTTOM}
-          />
         </Svg>
 
         <View

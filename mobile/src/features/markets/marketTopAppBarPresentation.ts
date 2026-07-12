@@ -16,8 +16,8 @@ export type TopAppBarConnectionPresentation = {
 
 export const MARKET_TOP_APP_BAR_HEIGHT_DP = 56;
 export const MARKET_TOP_APP_BAR_HORIZONTAL_PADDING_DP = 16;
-export const MARKET_TOP_APP_BAR_MENU_WIDTH_DP = 18;
-export const MARKET_TOP_APP_BAR_MENU_HEIGHT_DP = 12;
+export const MARKET_TOP_APP_BAR_BACK_WIDTH_DP = 21;
+export const MARKET_TOP_APP_BAR_BACK_HEIGHT_DP = 21;
 export const MARKET_TOP_APP_BAR_SIGNAL_WIDTH_DP = 20;
 export const MARKET_TOP_APP_BAR_SIGNAL_HEIGHT_DP = 15;
 export const MARKET_TOP_APP_BAR_TITLE_FONT_SIZE_DP = 17;

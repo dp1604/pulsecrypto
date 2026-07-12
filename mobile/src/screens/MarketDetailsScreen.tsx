@@ -113,7 +113,7 @@ export const MarketDetailsScreen = () => {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <MarketTopAppBar
         connectionStatus={connectionStatus}
-        onMenuPress={() => navigation.goBack()}
+        onBackPress={() => navigation.goBack()}
         pairTitle={displayName}
         reconnectAttempt={reconnectAttempt}
       />

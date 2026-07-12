@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import type { PairMeta, PairSymbol } from "@pulsecrypto/shared";
+import { BookmarkIcon } from "../../components/icons/BookmarkIcon";
 import { colors, typography } from "../../theme";
 import {
   formatHighLowPrice,
@@ -19,6 +20,7 @@ import {
   selectWatchlistDisplayValuesAll
 } from "./marketMotionPresentation";
 import { useMarketsLiveStore } from "./marketsLiveStoreInstance";
+import { useWatchlistPriceHighlights } from "./useWatchlistPriceHighlights";
 import { WatchlistLiveValues } from "./WatchlistLiveValues";
 
 type PairMetadataRowProps = {
@@ -26,6 +28,7 @@ type PairMetadataRowProps = {
   isFavourite: boolean;
   displayPrice: number | undefined;
   displayChange24h: number | undefined;
+  priceHighlightDirection: "increase" | "decrease" | "none";
   onToggleFavourite: (pair: string) => void;
   onOpenDetails: (pair: PairSymbol) => void;
 };
@@ -36,10 +39,13 @@ const PairMetadataRow = memo(
     isFavourite,
     displayPrice,
     displayChange24h,
+    priceHighlightDirection,
     onToggleFavourite,
     onOpenDetails
   }: PairMetadataRowProps) => {
-    const favouriteLabel = isFavourite ? "Favourited" : "Favourite";
+    const favouriteAccessibilityLabel = isFavourite
+      ? `Remove ${item.displayName} from favourites`
+      : `Add ${item.displayName} to favourites`;
 
     return (
       <View style={styles.row}>
@@ -58,6 +64,7 @@ const PairMetadataRow = memo(
             displayChange24h={displayChange24h}
             displayName={item.displayName}
             displayPrice={displayPrice}
+            priceHighlightDirection={priceHighlightDirection}
           />
           <Text style={styles.metaLine}>
             24h volume {formatVolume(item.volume24h, true)}
@@ -69,12 +76,15 @@ const PairMetadataRow = memo(
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${favouriteLabel} ${item.displayName}`}
+          accessibilityLabel={favouriteAccessibilityLabel}
           accessibilityState={{ selected: isFavourite }}
           onPress={() => onToggleFavourite(item.pair)}
-          style={styles.favouriteButton}
+          style={[
+            styles.bookmarkButton,
+            isFavourite ? styles.bookmarkButtonSelected : undefined
+          ]}
         >
-          <Text style={styles.favouriteButtonText}>{favouriteLabel}</Text>
+          <BookmarkIcon filled={isFavourite} />
         </Pressable>
       </View>
     );
@@ -106,6 +116,7 @@ export const WatchlistRows = memo(
     const displayValuesAll = useMarketsLiveStore(
       useShallow(selectWatchlistDisplayValuesAll)
     );
+    const priceHighlights = useWatchlistPriceHighlights(displayValuesAll);
 
     const renderRow = useCallback(
       (item: PairMeta, index: number) => {
@@ -124,6 +135,7 @@ export const WatchlistRows = memo(
               item={item}
               onOpenDetails={onOpenDetails}
               onToggleFavourite={onToggleFavourite}
+              priceHighlightDirection={priceHighlights[item.pair] ?? "none"}
             />
           </View>
         );
@@ -132,7 +144,8 @@ export const WatchlistRows = memo(
         displayValuesAll,
         favouriteSet,
         onOpenDetails,
-        onToggleFavourite
+        onToggleFavourite,
+        priceHighlights
       ]
     );
 
@@ -182,10 +195,13 @@ const styles = StyleSheet.create({
     flexGrow: 1
   },
   row: {
-    paddingVertical: 14,
-    gap: 4
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingVertical: 14
   },
   rowPressable: {
+    flex: 1,
     gap: 4
   },
   rowHeader: {
@@ -211,23 +227,15 @@ const styles = StyleSheet.create({
     ...typography.bodySecondary,
     color: colors.textSecondary
   },
-  favouriteButton: {
-    alignSelf: "flex-start",
-    marginTop: 8,
+  bookmarkButton: {
+    minWidth: 44,
     minHeight: 44,
-    minWidth: 120,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10
+    borderRadius: 10
   },
-  favouriteButtonText: {
-    ...typography.buttonLabel,
-    color: colors.textPrimary
+  bookmarkButtonSelected: {
+    backgroundColor: colors.surface
   },
   separator: {
     height: 1,

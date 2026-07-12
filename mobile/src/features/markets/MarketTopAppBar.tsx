@@ -1,11 +1,12 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { BackIcon } from "../../components/icons/BackIcon";
 import { colors, typography } from "../../theme";
 import {
   deriveTopAppBarConnectionPresentation,
+  MARKET_TOP_APP_BAR_BACK_HEIGHT_DP,
+  MARKET_TOP_APP_BAR_BACK_WIDTH_DP,
   MARKET_TOP_APP_BAR_HEIGHT_DP,
   MARKET_TOP_APP_BAR_HORIZONTAL_PADDING_DP,
-  MARKET_TOP_APP_BAR_MENU_HEIGHT_DP,
-  MARKET_TOP_APP_BAR_MENU_WIDTH_DP,
   MARKET_TOP_APP_BAR_SIGNAL_HEIGHT_DP,
   MARKET_TOP_APP_BAR_SIGNAL_WIDTH_DP,
   resolveTopAppBarToneColor
@@ -16,14 +17,14 @@ type MarketTopAppBarProps = {
   pairTitle: string;
   connectionStatus: MarketConnectionStatus;
   reconnectAttempt?: number;
-  onMenuPress: () => void;
+  onBackPress: () => void;
 };
 
 export const MarketTopAppBar = ({
   pairTitle,
   connectionStatus,
   reconnectAttempt = 0,
-  onMenuPress
+  onBackPress
 }: MarketTopAppBarProps) => {
   const connection = deriveTopAppBarConnectionPresentation(
     connectionStatus,
@@ -36,18 +37,13 @@ export const MarketTopAppBar = ({
       <View style={styles.bar}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Back to markets"
+          accessibilityLabel="Back to Markets"
           hitSlop={8}
-          onPress={onMenuPress}
-          style={styles.menuButton}
+          onPress={onBackPress}
+          style={styles.backButton}
         >
-          <Image
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            resizeMode="contain"
-            source={require("../../../assets/figma/menu.png")}
-            style={styles.menuIcon}
-            tintColor={colors.buy}
+          <BackIcon
+            size={MARKET_TOP_APP_BAR_BACK_WIDTH_DP}
           />
         </Pressable>
 
@@ -90,15 +86,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: MARKET_TOP_APP_BAR_HORIZONTAL_PADDING_DP,
     gap: 8
   },
-  menuButton: {
+  backButton: {
     minWidth: 44,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center"
-  },
-  menuIcon: {
-    width: MARKET_TOP_APP_BAR_MENU_WIDTH_DP,
-    height: MARKET_TOP_APP_BAR_MENU_HEIGHT_DP
   },
   title: {
     ...typography.appBarPair,

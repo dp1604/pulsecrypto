@@ -8,10 +8,17 @@ import {
   askCurveReachesRightHalf,
   buildAskDepthPoints,
   buildBidDepthPoints,
+  buildDepthLinePathWithCenterJoin,
   centerValleyIsAboveBaseline,
   centerValleyToBaselineGap,
+  depthCenterJoinIsC1Continuous,
+  depthCenterJoinIsHorizontallyTangent,
+  depthLinePathStartsAtSharedCenter,
+  depthLinePathUsesLineCommandAtCenterJoin,
   depthVisibleYFromNormalized,
+  getMarketDepthAskCenterJoinControlPoint,
   getMarketDepthAskShoulderPoint,
+  getMarketDepthBidCenterJoinControlPoint,
   getMarketDepthBidShoulderPoint,
   getMarketDepthCenterValleyPoint,
   buildDepthAreaPath,
@@ -33,6 +40,7 @@ import {
   getPathCoordinateDomain,
   isValidDepthLevel,
   MARKET_DEPTH_CENTER_DIVIDER_X,
+  MARKET_DEPTH_CENTER_JOIN_TANGENT_OFFSET,
   MARKET_DEPTH_CENTER_SHOULDER_OFFSET,
   MARKET_DEPTH_CENTER_VALLEY_Y,
   MARKET_DEPTH_BASELINE_Y,
@@ -180,8 +188,8 @@ describe("marketDepthPresentation", () => {
       );
 
       expect(points[0]).toEqual(getMarketDepthCenterValleyPoint());
-      expect(points[1]).toEqual(getMarketDepthBidShoulderPoint());
-      expect(points[2]?.x).toBeGreaterThan(points[3]?.x ?? 0);
+      expect(points[1]?.x).toBeGreaterThan(points[2]?.x ?? 0);
+      expect(points[1]?.x).toBeLessThan(MARKET_DEPTH_CENTER_DIVIDER_X);
     });
 
     it("places the best ask nearest the centre", () => {
@@ -192,8 +200,8 @@ describe("marketDepthPresentation", () => {
       );
 
       expect(points[0]).toEqual(getMarketDepthCenterValleyPoint());
-      expect(points[1]).toEqual(getMarketDepthAskShoulderPoint());
-      expect(points[2]?.x).toBeLessThan(points[3]?.x ?? 1);
+      expect(points[1]?.x).toBeLessThan(points[2]?.x ?? 1);
+      expect(points[1]?.x).toBeGreaterThan(MARKET_DEPTH_CENTER_DIVIDER_X);
     });
 
     it("computes edge cumulative totals", () => {
@@ -234,8 +242,8 @@ describe("marketDepthPresentation", () => {
 
       expect(presentation.bidTotalQuantity).toBe(9);
       expect(presentation.askTotalQuantity).toBe(3);
-      expect(presentation.chart.bidPoints[2]?.y).toBeLessThan(
-        presentation.chart.askPoints[2]?.y ?? 1
+      expect(presentation.chart.bidPoints[1]?.y).toBeLessThan(
+        presentation.chart.askPoints[1]?.y ?? 1
       );
     });
 
@@ -612,23 +620,75 @@ describe("marketDepthPresentation", () => {
       }
     });
 
-    it("uses symmetric center shoulders as tangent control points", () => {
-      const bidShoulder = getMarketDepthBidShoulderPoint();
-      const askShoulder = getMarketDepthAskShoulderPoint();
+    it("uses symmetric center join controls as mirrored tangent points", () => {
+      const bidControl = getMarketDepthBidCenterJoinControlPoint();
+      const askControl = getMarketDepthAskCenterJoinControlPoint();
 
-      expect(bidShoulder.y).toBe(MARKET_DEPTH_CENTER_VALLEY_Y);
-      expect(askShoulder.y).toBe(MARKET_DEPTH_CENTER_VALLEY_Y);
-      expect(bidShoulder.x).toBeCloseTo(
-        MARKET_DEPTH_CENTER_DIVIDER_X - MARKET_DEPTH_CENTER_SHOULDER_OFFSET,
+      expect(bidControl.y).toBe(MARKET_DEPTH_CENTER_VALLEY_Y);
+      expect(askControl.y).toBe(MARKET_DEPTH_CENTER_VALLEY_Y);
+      expect(bidControl.x).toBeCloseTo(
+        MARKET_DEPTH_CENTER_DIVIDER_X - MARKET_DEPTH_CENTER_JOIN_TANGENT_OFFSET,
         6
       );
-      expect(askShoulder.x).toBeCloseTo(
-        MARKET_DEPTH_CENTER_DIVIDER_X + MARKET_DEPTH_CENTER_SHOULDER_OFFSET,
+      expect(askControl.x).toBeCloseTo(
+        MARKET_DEPTH_CENTER_DIVIDER_X + MARKET_DEPTH_CENTER_JOIN_TANGENT_OFFSET,
         6
       );
-      expect(MARKET_DEPTH_CENTER_DIVIDER_X - bidShoulder.x).toBeCloseTo(
-        askShoulder.x - MARKET_DEPTH_CENTER_DIVIDER_X,
+      expect(MARKET_DEPTH_CENTER_JOIN_TANGENT_OFFSET).toBe(
+        MARKET_DEPTH_CENTER_SHOULDER_OFFSET
+      );
+      expect(MARKET_DEPTH_CENTER_DIVIDER_X - bidControl.x).toBeCloseTo(
+        askControl.x - MARKET_DEPTH_CENTER_DIVIDER_X,
         6
+      );
+      expect(getMarketDepthBidShoulderPoint()).toEqual(bidControl);
+      expect(getMarketDepthAskShoulderPoint()).toEqual(askControl);
+    });
+
+    it("joins bid and ask at one shared center with horizontal tangents", () => {
+      expect(depthLinePathStartsAtSharedCenter(chart.bidLinePath, "bid")).toBe(
+        true
+      );
+      expect(depthLinePathStartsAtSharedCenter(chart.askLinePath, "ask")).toBe(
+        true
+      );
+      expect(
+        depthCenterJoinIsHorizontallyTangent(chart.bidLinePath, "bid")
+      ).toBe(true);
+      expect(
+        depthCenterJoinIsHorizontallyTangent(chart.askLinePath, "ask")
+      ).toBe(true);
+      expect(
+        depthCenterJoinIsC1Continuous(chart.bidLinePath, chart.askLinePath)
+      ).toBe(true);
+    });
+
+    it("does not use a line command at the visible center join", () => {
+      expect(depthLinePathUsesLineCommandAtCenterJoin(chart.bidLinePath)).toBe(
+        false
+      );
+      expect(depthLinePathUsesLineCommandAtCenterJoin(chart.askLinePath)).toBe(
+        false
+      );
+      expect(chart.bidLinePath.startsWith("M")).toBe(true);
+      expect(chart.bidLinePath.includes(" C ")).toBe(true);
+      expect(chart.askLinePath.startsWith("M")).toBe(true);
+      expect(chart.askLinePath.includes(" C ")).toBe(true);
+    });
+
+    it("keeps bid and ask visible paths on their respective halves", () => {
+      const bidXs = parsePathCoordinates(chart.bidLinePath).filter(
+        (_, index) => index % 2 === 0
+      );
+      const askXs = parsePathCoordinates(chart.askLinePath).filter(
+        (_, index) => index % 2 === 0
+      );
+
+      expect(bidXs.every((x) => x <= MARKET_DEPTH_CENTER_DIVIDER_X + 1e-6)).toBe(
+        true
+      );
+      expect(askXs.every((x) => x >= MARKET_DEPTH_CENTER_DIVIDER_X - 1e-6)).toBe(
+        true
       );
     });
 
@@ -716,6 +776,11 @@ describe("marketDepthPresentation", () => {
       expect(source).toMatch(/chart\.bidLinePath/);
       expect(source).toMatch(/chart\.askLinePath/);
       expect(source).toMatch(/fill="none"/);
+      expect(source).toMatch(/strokeLinecap="round"/);
+      expect(source).toMatch(/strokeLinejoin="round"/);
+      expect(source.indexOf("MARKET_DEPTH_CENTER_DIVIDER_X")).toBeLessThan(
+        source.indexOf("chart.bidAreaPath")
+      );
     });
   });
 

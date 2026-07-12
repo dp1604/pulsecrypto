@@ -38,7 +38,35 @@ describe("WatchlistRows structure", () => {
     expect(source.includes("key={item.pair}")).toBe(true);
     expect(source.includes("displayPrice={displayPrice}")).toBe(true);
     expect(source.includes("displayChange24h={displayChange24h}")).toBe(true);
+    expect(source.includes("priceHighlightDirection=")).toBe(true);
     expect(source.includes("resolveWatchlistDisplayValuesForPair")).toBe(true);
+  });
+
+  it("replaces the text favourite button with an accessible bookmark icon", () => {
+    const source = readFileSync(resolve(__dirname, "WatchlistRows.tsx"), "utf8");
+
+    expect(source.includes("favouriteButtonText")).toBe(false);
+    expect(source.includes("Favourited")).toBe(false);
+    expect(source.includes("minWidth: 120")).toBe(false);
+    expect(source.includes("BookmarkIcon")).toBe(true);
+    expect(source.includes("Add ${item.displayName} to favourites")).toBe(true);
+    expect(source.includes("Remove ${item.displayName} from favourites")).toBe(
+      true
+    );
+    expect(source.includes("minWidth: 44")).toBe(true);
+    expect(source.includes("minHeight: 44")).toBe(true);
+    expect(source.includes("accessibilityState={{ selected: isFavourite }}")).toBe(
+      true
+    );
+  });
+
+  it("keeps row navigation and favourite callbacks as separate pressables", () => {
+    const source = readFileSync(resolve(__dirname, "WatchlistRows.tsx"), "utf8");
+
+    expect(source.includes("onOpenDetails(item.pair)")).toBe(true);
+    expect(source.includes("onToggleFavourite(item.pair)")).toBe(true);
+    expect(source.includes("rowPressable")).toBe(true);
+    expect(source.includes("bookmarkButton")).toBe(true);
   });
 
   it("memoizes row rendering and keeps callbacks as props", () => {

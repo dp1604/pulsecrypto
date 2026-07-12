@@ -27,6 +27,9 @@ export const MARKET_DEPTH_SUMMARY_CARD_BOTTOM_DP = 16;
 export const MARKET_DEPTH_SUMMARY_CARD_ESTIMATED_HEIGHT_DP = 52;
 export const MARKET_DEPTH_MIN_VALLEY_TO_CARD_GAP_DP = 28;
 export const MARKET_DEPTH_CENTER_SHOULDER_OFFSET = 0.015;
+/** Mirrored horizontal tangent offset at the shared center valley join. */
+export const MARKET_DEPTH_CENTER_JOIN_TANGENT_OFFSET =
+  MARKET_DEPTH_CENTER_SHOULDER_OFFSET;
 export const MARKET_DEPTH_LINE_STROKE_WIDTH = 0.008;
 export const MARKET_DEPTH_VIEW_BOX_DOMAIN = { min: 0, max: 1 } as const;
 
@@ -81,6 +84,7 @@ const CHART_TOP = 0;
 const CHART_CENTER_X = 0.5;
 const CHART_CENTER_VALLEY_Y = MARKET_DEPTH_CENTER_VALLEY_Y;
 const CHART_CENTER_SHOULDER_OFFSET = MARKET_DEPTH_CENTER_SHOULDER_OFFSET;
+const CHART_CENTER_JOIN_TANGENT_OFFSET = MARKET_DEPTH_CENTER_JOIN_TANGENT_OFFSET;
 
 export const getMarketDepthCenterValleyPoint = (): NormalizedDepthPoint => ({
   x: CHART_CENTER_X,
@@ -371,15 +375,19 @@ export const classifyMarketDepthPressure = (
   return "Balanced";
 };
 
-export const getMarketDepthBidShoulderPoint = (): NormalizedDepthPoint => ({
-  x: CHART_CENTER_X - CHART_CENTER_SHOULDER_OFFSET,
+export const getMarketDepthBidCenterJoinControlPoint = (): NormalizedDepthPoint => ({
+  x: CHART_CENTER_X - CHART_CENTER_JOIN_TANGENT_OFFSET,
   y: CHART_CENTER_VALLEY_Y
 });
 
-export const getMarketDepthAskShoulderPoint = (): NormalizedDepthPoint => ({
-  x: CHART_CENTER_X + CHART_CENTER_SHOULDER_OFFSET,
+export const getMarketDepthAskCenterJoinControlPoint = (): NormalizedDepthPoint => ({
+  x: CHART_CENTER_X + CHART_CENTER_JOIN_TANGENT_OFFSET,
   y: CHART_CENTER_VALLEY_Y
 });
+
+export const getMarketDepthBidShoulderPoint = getMarketDepthBidCenterJoinControlPoint;
+
+export const getMarketDepthAskShoulderPoint = getMarketDepthAskCenterJoinControlPoint;
 
 export const depthVisibleYFromNormalized = (normalizedDepth: number): number => {
   const clamped = Math.min(1, Math.max(0, normalizedDepth));
@@ -406,10 +414,7 @@ export const buildBidDepthPoints = (
     return [getMarketDepthCenterValleyPoint()];
   }
 
-  const points: NormalizedDepthPoint[] = [
-    getMarketDepthCenterValleyPoint(),
-    getMarketDepthBidShoulderPoint()
-  ];
+  const points: NormalizedDepthPoint[] = [getMarketDepthCenterValleyPoint()];
 
   for (let index = 0; index < count; index += 1) {
     const normalized = normalizeDepthValue(bidCumulative[index] ?? 0, sharedMaximum);
@@ -437,10 +442,7 @@ export const buildAskDepthPoints = (
     return [getMarketDepthCenterValleyPoint()];
   }
 
-  const points: NormalizedDepthPoint[] = [
-    getMarketDepthCenterValleyPoint(),
-    getMarketDepthAskShoulderPoint()
-  ];
+  const points: NormalizedDepthPoint[] = [getMarketDepthCenterValleyPoint()];
 
   for (let index = 0; index < count; index += 1) {
     const normalized = normalizeDepthValue(askCumulative[index] ?? 0, sharedMaximum);
@@ -462,26 +464,13 @@ const hasVisibleDepthCurve = (points: readonly NormalizedDepthPoint[]): boolean 
   points.length > 1 &&
   points.some((point) => point.y < MARKET_DEPTH_CENTER_VALLEY_Y - 1e-6);
 
-const catmullRomToBezierPath = (
-  points: readonly NormalizedDepthPoint[]
-): string => {
-  if (points.length === 0) {
-    return "";
-  }
+const catmullRomBezierSegments = (
+  points: readonly NormalizedDepthPoint[],
+  startIndex = 0
+): string[] => {
+  const segments: string[] = [];
 
-  if (points.length === 1) {
-    const point = points[0];
-    return `M ${point.x} ${point.y}`;
-  }
-
-  if (points.length === 2) {
-    const [first, second] = points;
-    return `M ${first.x} ${first.y} L ${second.x} ${second.y}`;
-  }
-
-  const segments: string[] = [`M ${points[0].x} ${points[0].y}`];
-
-  for (let index = 0; index < points.length - 1; index += 1) {
+  for (let index = startIndex; index < points.length - 1; index += 1) {
     const p0 = points[Math.max(0, index - 1)];
     const p1 = points[index];
     const p2 = points[index + 1];
@@ -492,12 +481,137 @@ const catmullRomToBezierPath = (
     const cp2x = p2.x - (p3.x - p1.x) / 6;
     const cp2y = clampVisibleChartY(p2.y - (p3.y - p1.y) / 6);
 
-    segments.push(
-      `C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+    segments.push(`C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`);
+  }
+
+  return segments;
+};
+
+const buildCenterJoinApproachControl = (
+  center: NormalizedDepthPoint,
+  target: NormalizedDepthPoint,
+  side: "bid" | "ask"
+): NormalizedDepthPoint => {
+  const direction = side === "bid" ? -1 : 1;
+  const offset = CHART_CENTER_JOIN_TANGENT_OFFSET * 0.5;
+
+  return {
+    x: target.x - direction * offset,
+    y: clampVisibleChartY(target.y)
+  };
+};
+
+export const buildDepthLinePathWithCenterJoin = (
+  points: readonly NormalizedDepthPoint[],
+  side: "bid" | "ask"
+): string => {
+  if (points.length === 0) {
+    return "";
+  }
+
+  if (points.length === 1) {
+    const point = points[0];
+    return `M ${point.x} ${point.y}`;
+  }
+
+  const center = points[0];
+  const firstOuter = points[1];
+  const centerControl =
+    side === "bid"
+      ? getMarketDepthBidCenterJoinControlPoint()
+      : getMarketDepthAskCenterJoinControlPoint();
+  const approachControl = buildCenterJoinApproachControl(
+    center,
+    firstOuter,
+    side
+  );
+
+  const segments = [
+    `M ${center.x} ${center.y}`,
+    `C ${centerControl.x} ${centerControl.y}, ${approachControl.x} ${approachControl.y}, ${firstOuter.x} ${firstOuter.y}`,
+    ...catmullRomBezierSegments(points, 1)
+  ];
+
+  return segments.join(" ");
+};
+
+export const depthLinePathUsesLineCommandAtCenterJoin = (path: string): boolean => {
+  const center = getMarketDepthCenterValleyPoint();
+  const centerXPattern = new RegExp(
+    `L\\s+${center.x.toFixed(6).replace(".", "\\.")}\\s+${center.y.toFixed(6).replace(".", "\\.")}`,
+    "i"
+  );
+
+  return centerXPattern.test(path);
+};
+
+export const depthLinePathStartsAtSharedCenter = (
+  path: string,
+  side: "bid" | "ask"
+): boolean => {
+  const coordinates = extractPathCoordinates(path);
+  const center = getMarketDepthCenterValleyPoint();
+
+  if (coordinates.length < 2) {
+    return false;
+  }
+
+  return (
+    Math.abs((coordinates[0] ?? 0) - center.x) < 1e-6 &&
+    Math.abs((coordinates[1] ?? 0) - center.y) < 1e-6
+  );
+};
+
+export const depthCenterJoinIsHorizontallyTangent = (
+  path: string,
+  side: "bid" | "ask"
+): boolean => {
+  const coordinates = extractPathCoordinates(path);
+  const center = getMarketDepthCenterValleyPoint();
+
+  if (coordinates.length < 6) {
+    return false;
+  }
+
+  const cpX = coordinates[2] ?? 0;
+  const cpY = coordinates[3] ?? 0;
+
+  if (side === "bid") {
+    return (
+      cpX < center.x &&
+      Math.abs(cpY - center.y) < 1e-6
     );
   }
 
-  return segments.join(" ");
+  return (
+    cpX > center.x &&
+    Math.abs(cpY - center.y) < 1e-6
+  );
+};
+
+export const depthCenterJoinIsC1Continuous = (
+  bidLinePath: string,
+  askLinePath: string
+): boolean => {
+  const center = getMarketDepthCenterValleyPoint();
+  const bidCoordinates = extractPathCoordinates(bidLinePath);
+  const askCoordinates = extractPathCoordinates(askLinePath);
+
+  if (bidCoordinates.length < 4 || askCoordinates.length < 4) {
+    return false;
+  }
+
+  const bidCenterY = bidCoordinates[1] ?? Number.NaN;
+  const askCenterY = askCoordinates[1] ?? Number.NaN;
+
+  return (
+    Math.abs((bidCoordinates[0] ?? 0) - center.x) < 1e-6 &&
+    Math.abs((askCoordinates[0] ?? 0) - center.x) < 1e-6 &&
+    Math.abs(bidCenterY - center.y) < 1e-6 &&
+    Math.abs(askCenterY - center.y) < 1e-6 &&
+    depthCenterJoinIsHorizontallyTangent(bidLinePath, "bid") &&
+    depthCenterJoinIsHorizontallyTangent(askLinePath, "ask")
+  );
 };
 
 export const buildDepthAreaPath = (
@@ -508,7 +622,7 @@ export const buildDepthAreaPath = (
     return "";
   }
 
-  const linePath = catmullRomToBezierPath(points);
+  const linePath = buildDepthLinePathWithCenterJoin(points, side);
 
   if (!linePath) {
     return "";
@@ -537,8 +651,8 @@ export const buildMarketDepthChartModel = (
     askPoints,
     bidAreaPath: buildDepthAreaPath(bidPoints, "bid"),
     askAreaPath: buildDepthAreaPath(askPoints, "ask"),
-    bidLinePath: catmullRomToBezierPath(bidPoints),
-    askLinePath: catmullRomToBezierPath(askPoints)
+    bidLinePath: buildDepthLinePathWithCenterJoin(bidPoints, "bid"),
+    askLinePath: buildDepthLinePathWithCenterJoin(askPoints, "ask")
   };
 };
 

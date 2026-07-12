@@ -3,15 +3,36 @@ import { StyleSheet, Text, View } from "react-native";
 import { colors, typography } from "../../theme";
 import { formatLivePrice } from "./liveMarketFormatting";
 import { formatChange24hPresentation } from "./marketNumberPresentation";
+import type { WatchlistPriceHighlightDirection } from "./watchlistPriceHighlightPresentation";
 
 type WatchlistLiveValuesProps = {
   displayName: string;
   displayPrice: number | undefined;
   displayChange24h: number | undefined;
+  priceHighlightDirection?: WatchlistPriceHighlightDirection;
+};
+
+const resolvePriceTextColor = (
+  direction: WatchlistPriceHighlightDirection | undefined
+): string => {
+  if (direction === "increase") {
+    return colors.buy;
+  }
+
+  if (direction === "decrease") {
+    return colors.sell;
+  }
+
+  return colors.textPrimary;
 };
 
 export const WatchlistLiveValues = memo(
-  ({ displayName, displayPrice, displayChange24h }: WatchlistLiveValuesProps) => {
+  ({
+    displayName,
+    displayPrice,
+    displayChange24h,
+    priceHighlightDirection = "none"
+  }: WatchlistLiveValuesProps) => {
     const hasPrice = displayPrice !== undefined;
     const livePriceText = hasPrice
       ? formatLivePrice(displayPrice)
@@ -19,6 +40,7 @@ export const WatchlistLiveValues = memo(
     const liveChangePresentation = hasPrice
       ? formatChange24hPresentation(displayChange24h)
       : null;
+    const priceTextColor = resolvePriceTextColor(priceHighlightDirection);
 
     return (
       <>
@@ -26,7 +48,7 @@ export const WatchlistLiveValues = memo(
           <Text style={styles.liveValue}>Live price </Text>
           <Text
             accessibilityLabel={`${displayName} live price ${livePriceText}`}
-            style={styles.liveValue}
+            style={[styles.liveValue, { color: priceTextColor }]}
           >
             {livePriceText}
           </Text>

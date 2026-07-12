@@ -21,16 +21,20 @@ describe("WatchlistLiveValues pure view", () => {
     expect(source.includes("displayChange24h:")).toBe(true);
   });
 
-  it("keeps neutral primary price text and directional 24h change colors", () => {
+  it("applies brief buy/sell price text colors from highlight direction", () => {
     const source = readFileSync(
       resolve(__dirname, "WatchlistLiveValues.tsx"),
       "utf8"
     );
 
-    expect(source.includes("colors.textPrimary")).toBe(true);
+    expect(source.includes("priceHighlightDirection")).toBe(true);
+    expect(source.includes('direction === "increase"')).toBe(true);
+    expect(source.includes('direction === "decrease"')).toBe(true);
     expect(source.includes("colors.buy")).toBe(true);
     expect(source.includes("colors.sell")).toBe(true);
-    expect(source.includes("24h change")).toBe(true);
+    expect(source.includes("colors.textPrimary")).toBe(true);
+    expect(source.includes("backgroundColor")).toBe(false);
+    expect(source.includes("overlay")).toBe(false);
   });
 
   it("formats grouped prices and percentage triangles", () => {
