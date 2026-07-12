@@ -2,6 +2,10 @@
 
 Status: Accepted
 
+Decision owner: Dinitha Gamage
+
+Scope: PulseCrypto assignment
+
 Date: 2026-07-09
 
 ## Context
@@ -10,7 +14,7 @@ The assignment requires Binance public market streams for multiple pairs, contin
 
 ## Decision
 
-Plan to combine Binance partial-depth streams with ticker streams for the supported pairs.
+Combine Binance partial-depth streams with ticker streams for the supported pairs.
 
 Partial depth streams:
 

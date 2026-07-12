@@ -1,119 +1,83 @@
 # PulseCrypto
 
-PulseCrypto is a practical-assignment project for a Staff Engineer / Mobile Architect role: a real-time cryptocurrency market viewer with a Node.js + TypeScript backend gateway and a React Native mobile app validated on Android Emulator.
+PulseCrypto is a real-time cryptocurrency market viewer built as a Staff Engineer / Mobile Architect practical assignment. I designed it as a monorepo with a Node.js + TypeScript backend gateway, shared contracts, and a React Native mobile app validated on Android Emulator.
 
-The repository delivers shared TypeScript contracts, a backend market gateway, and a complete Expo React Native mobile experience: Markets watchlist with live WebSocket pricing, search/filter, persisted favourites, pull-to-refresh metadata, bounded reconnect with last-known values, and Figma-aligned Market Details with animated LAST PRICE, Order Book, and Market Depth. Terminal, Telemetry, and Settings remain intentional placeholder screens.
+The system separates ingestion cadence, validated application state, and UI publication so sustained market updates remain bounded and responsive. I used AI-assisted engineering tools to accelerate implementation and review while retaining ownership of architecture, scope, quality gates, and final technical decisions.
 
 ## What this project demonstrates
 
-- Architecture for real-time market data ingestion, processing, and mobile delivery.
-- Mobile engineering judgment for smooth rendering under sustained updates.
-- Explicit trade-offs around batching, coalescing, offline behavior, and bounded memory.
+- Real-time market-data architecture from Binance public streams through a backend gateway to mobile clients.
+- Mobile engineering judgment under sustained updates: one live store, coalesced display publication, selector-based rendering.
+- Explicit trade-offs: latest-state delivery, slow-consumer protection, reconnect/last-known behavior, honest deferred scope.
 - Documentation and ADR discipline suitable for senior technical review.
-- Controlled AI-assisted development with guardrails against hallucinated APIs, dependency drift, and over-engineering.
+- Governed AI-assisted delivery with validation at trust boundaries.
 
-## Requirements coverage
+## Assignment scope
 
-| Area | Assignment requirement | Status |
+| Area | Requirement | Status |
 | --- | --- | --- |
-| Backend gateway | Node.js service bridging Binance public data to mobile clients | **Implemented** |
-| Binance pairs | BTC/USDT, ETH/USDT, SOL/USDT, DOGE/USDT, XRP/USDT | **Implemented** |
-| Batching | Configurable broadcast interval, default 100ms | **Implemented** |
-| Slow-consumer protection | Prevent unbounded memory growth on slow WebSocket clients | **Implemented** |
-| Metadata | `GET /pairs/meta` endpoint | **Implemented** (fixtures disclosed) |
-| Android mobile | React Native on Android Emulator | **Implemented** and release-validated |
-| Watchlist | Pair, price, 24h change, connection indicator, favourite toggle | **Implemented** |
-| Search | Local pair search/filter | **Implemented** |
-| Favourites | Persist and restore locally | **Implemented** |
-| Details | Price, pressure, spread, bids, asks, timestamp | **Implemented** |
-| Reconnect/offline | Last-known data and automatic reconnect | **Implemented** |
-| Refresh | Pull-to-refresh metadata without interrupting WebSocket | **Implemented** |
-| Performance | Smooth updates under sustained bursts | **Validated** with disclosed risk |
-| Delivery documentation | README, architecture, assumptions, trade-offs, AI usage | **Complete** |
+| Backend gateway | Node.js service bridging Binance public data | **Implemented** |
+| Supported pairs | BTC, ETH, SOL, DOGE, XRP (USDT) | **Implemented** |
+| Batching | 100ms latest-state broadcast | **Implemented** |
+| Slow-consumer protection | Bounded memory on slow WebSocket clients | **Implemented** |
+| Metadata | `GET /pairs/meta` | **Implemented** (fixtures disclosed) |
+| Android mobile | React Native on Android Emulator | **Implemented**, release-validated |
+| Watchlist | Live prices, 24h change, favourites, search | **Implemented** |
+| Market Details | Price, order book, market depth, reconnect | **Implemented** |
+| Performance | Evidence under sustained updates | **Validated** with disclosed risk |
+| Documentation | Architecture, assumptions, trade-offs, AI disclosure | **Complete** |
 
-P0 assignment requirements take priority over optional visual details from the Figma mockup.
+P0 assignment requirements take priority over optional Figma-only surfaces.
 
-## Performance summary
-
-Release-runtime profiling on the optimized APK classified overall performance as **PASS_WITH_PERFORMANCE_RISK**:
-
-- Zero frozen frames across measured workloads
-- Idle sparse Watchlist p99: 23ms (63 frames at 1.4 fps — sparse commit model)
-- Controlled interaction p99: 57ms (max 61ms)
-- BTC Details p99: 77ms (max 133ms)
-- Representative mixed Watchlist p99: 113ms (max 150ms during scroll + search + refresh)
-- Memory remained bounded/stable
-- Elevated emulator/Android jank counters acknowledged as remaining risk
-
-See [docs/final-validation.md](docs/final-validation.md) for environment, workload table, and limitations. Do not treat modern jank percentage alone as failure when frame durations and responsiveness remain acceptable.
-
-## Architecture overview
-
-Monorepo with clear ownership boundaries:
-
-- `backend/`: REST health/metadata routes, WebSocket server, Binance stream ingestion, latest-state store, 100ms `market.snapshot.batch` broadcasting, slow-consumer protection.
-- `mobile/`: Expo React Native app with one live store, 250ms visual publication coalescing, one Watchlist-level batch subscription (ten display primitives), bounded five-pair `ScrollView`, Market Details with animated LAST PRICE, Order Book, Market Depth, and placeholder Terminal/Telemetry/Settings screens.
-- `packages/shared/`: shared contracts and constants only — no runtime side effects.
-- `docs/`: architecture notes, ADRs, final validation, and submission handoff.
-
-Final Watchlist architecture (STEP-16B):
-
-- One `useMarketsLiveStore` subscription at Watchlist level
-- Ten display primitives (price + 24h change × 5 pairs)
-- Pure prop-driven `WatchlistLiveValues` rows
-- Neutral Watchlist prices; green/red 24h direction with ▲/▼
-- Watchlist price flash removed; Market Details alone retains tick-direction animation
-
-## Repository structure
+## Architecture at a glance
 
 ```text
-pulsecrypto/
-  backend/                 # Node.js market gateway
-  mobile/                  # Expo React Native app
-  packages/shared/         # Shared contracts and constants
-  docs/
-    architecture.md
-    final-validation.md
-    submission-handoff.md
-    decisions/             # ADRs
-  AGENTS.md
-  package.json
-  pnpm-workspace.yaml
+Binance public streams
+  -> backend validation + latest-state store
+  -> 100ms market.snapshot.batch
+  -> mobile contract validation
+  -> one markets live store
+  -> 250ms display publication coalescer
+  -> Watchlist batch selector OR Market Details pair selectors
 ```
 
-## Backend design
+Monorepo boundaries:
 
-- Fastify HTTP with `GET /health` and `GET /pairs/meta`.
-- Mocked metadata generated from shared supported-pair constants (disclosed in UI/docs).
-- WebSocket server sends `connection.ready` and validated `market.snapshot.batch` messages.
-- Binance combined-stream ingestion with defensive parsing and reconnect policy.
-- `MarketBroadcaster` emits latest-state batches every 100ms by default.
-- Slow-consumer protection skips high-`bufferedAmount` sends and closes persistently slow clients.
-- Client heartbeat ping/pong removes dead connections.
+- `backend/` — REST, WebSocket, Binance ingestion, broadcaster, slow-consumer policy
+- `mobile/` — Expo React Native UI, one live store, favourites persistence, connection lifecycle
+- `packages/shared/` — contracts and constants only
+- `docs/` — architecture, ADRs, validation, handoff
 
-## Mobile architecture
+Key engineering decisions I required:
 
-- Expo SDK 57 with bottom-tab navigation (Markets default).
-- Markets loads metadata from REST; live pricing from validated WebSocket batches.
-- One `useMarketsLiveStore`; 250ms `marketDisplayCoalescer` for visual publication.
-- `WatchlistRows` provides one batch subscription and bounded `ScrollView` for five pairs.
-- Connection chip: `LIVE`, `SYNCING`, `CONNECTING`, `RECONNECTING`, `PAUSED`, `OFFLINE`.
-- Last-known snapshots retained during reconnect; metadata refresh is REST-only.
-- Market Details: Figma top app bar, animated LAST PRICE, fixture stats, Order Book, Market Depth.
-- Figma tab/search icons from `mobile/assets/figma/` — see [docs/figma-asset-map.md](docs/figma-asset-map.md).
-- `expo-dev-client` for development; optimized release APK for final validation.
-- **iOS not validated.** Android Emulator (`PulseCrypto_API_35`) is the assignment runtime.
-- Authentication, API keys, trading, and functional Settings/Telemetry are not implemented.
+- One authoritative live market-data path (no duplicate sockets or stores)
+- Latest-state coalescing instead of unbounded per-tick UI rendering
+- 100ms backend publication decoupled from 250ms mobile display publication
+- One Watchlist-level store subscription with ten display primitives for five pairs
+- Bounded `ScrollView` for five supported pairs
+- Pair-specific selectors on Market Details
+- Honest placeholders for Settings, Telemetry, and Terminal trading
 
-## UI reference
+Current Watchlist UX:
 
-Figma mockup: https://www.figma.com/design/JYfr5h2vC9IFKtX3vasmZk/Pulse-Crypto-Mockup?node-id=0-1&p=f
+- Bookmark favourite toggle with accessible outline/filled states
+- Brief buy/sell text highlighting on displayed-price changes (one list-level timer)
+- Directional 24h change colors independent of price-highlight timing
+- Market Details retains animated LAST PRICE tick-direction color
 
-Optional Figma-only surfaces (drawer, profile, API-key UI, shaders, functional telemetry) remain deferred.
+## Reliability and performance
 
-## Setup and run
+Release-runtime profiling on the optimized APK is classified **PASS_WITH_PERFORMANCE_RISK**:
 
-### Static validation
+- Zero frozen frames across measured workloads in prior sustained profiling
+- Idle sparse Watchlist p99: 23ms (prior evidence)
+- Representative mixed Watchlist p99: 113ms with bounded memory (prior evidence)
+- Latest UX-polish release APK SHA-256: `06c983fc6b65df6d02506c77d39dbf248c09a19dfb5dc0bdc585deac6c93131f`
+- Elevated emulator jank counters acknowledged; frame durations and responsiveness weighed alongside percentage metrics
+
+See [docs/final-validation.md](docs/final-validation.md).
+
+## Setup and validation
 
 ```bash
 CI=1 pnpm install --frozen-lockfile --reporter=append-only
@@ -123,70 +87,61 @@ cd mobile && pnpm dlx expo-doctor
 pnpm exec expo install --check
 ```
 
-### Backend
+Backend:
 
 ```bash
 pnpm dev:backend
 ```
 
-Default endpoints: `http://localhost:3000` (HTTP), `ws://localhost:3001` (WS).
-
-### Mobile development client
+Mobile development client (Android AVD workflow):
 
 ```bash
 pnpm dev:backend
 cd mobile
-CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android   # first time or native dep change
+CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android
 CI=1 pnpm exec expo run:android --device PulseCrypto_API_35 --variant debug
-pnpm exec expo start --dev-client --localhost --port 8081
 ```
 
-`--device` expects the Android Virtual Device name in this workflow, not the adb serial. Reviewers can run `emulator -list-avds` and substitute their installed AVD name.
-
-Environment (with `adb reverse`):
-
-```text
-EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3000
-EXPO_PUBLIC_WS_URL=ws://127.0.0.1:3001
-```
-
-Generated native folders (`mobile/android`, `mobile/ios`) are gitignored.
-
-### Optimized release APK
-
-SHA-256: `8985e7babce6a343f225be1f6cec4e780a510051110b9e31b191a782b02a2d71`
-
-Local release evidence used emulator-local HTTP/WS and temporary generated-native cleartext settings. This is assignment validation only—not production transport policy.
+Generated `mobile/android` and `mobile/ios` are gitignored.
 
 ## Testing
 
-- Backend: 65 tests (routes, market math, Binance ingestion, broadcaster, connection manager)
-- Mobile: 435 tests (stores, WebSocket, formatting, presentation, navigation, persistence)
-- Workspace: 500 test executions
+- Backend: **65** tests
+- Mobile: **453** tests
+- Workspace: **518** test executions
+
+## Known limitations and deferred scope
+
+- **iOS** not generated or validated
+- **Settings / Telemetry / Terminal trading** — placeholder screens only
+- **Metadata high/low/volume** — backend fixtures, labelled in UI
+- **CI pipeline** — not implemented
+- **Production hardening** — HTTPS/WSS, observability, crash reporting deferred
+
+## AI-assisted engineering disclosure
+
+Dinitha Gamage owned product scope, architecture boundaries, dependency policy, acceptance criteria, validation strategy, and final technical decisions. ChatGPT, Codex, and Cursor were used as AI-assisted engineering tools for alternative exploration, scoped implementation, code-review support, and evidence analysis. Proposed changes were evaluated through source inspection, automated tests, Android runtime validation, release-build verification, and reconciliation of conflicting evidence before adoption.
+
+Full disclosure: [docs/ai-assisted-engineering.md](docs/ai-assisted-engineering.md)
+
+## Reviewer entry points
+
+| Topic | Path |
+| --- | --- |
+| Architecture blueprint | [docs/architecture.md](docs/architecture.md) |
+| ADRs | [docs/decisions/](docs/decisions/) |
+| Submission handoff | [docs/submission-handoff.md](docs/submission-handoff.md) |
+| Final validation | [docs/final-validation.md](docs/final-validation.md) |
+| Backend broadcaster | `backend/src/ws/MarketBroadcaster.ts` |
+| Mobile live store + coalescer | `mobile/src/features/markets/marketsLiveStore.ts`, `marketDisplayCoalescer.ts` |
+| Watchlist architecture | `mobile/src/features/markets/WatchlistRows.tsx`, `marketMotionPresentation.ts` |
+| Market Details | `mobile/src/screens/MarketDetailsScreen.tsx` |
 
 ## Trade-offs
 
-- Latest-state coalescing sacrifices every-tick fidelity for bounded UI-friendly updates.
-- Backend gateway keeps mobile simpler and avoids direct Binance coupling.
-- Mocked metadata is acceptable by assignment scope and clearly disclosed.
-- Market Details passes only pair symbol; live store remains source of truth.
-- Order book bounded to top 10 levels for mobile readability.
-- Figma fidelity matters, but P0 functional behavior takes precedence over optional chrome.
-
-## AI-assisted development
-
-Governance: `AGENTS.md`, [docs/cursor-development-guide.md](docs/cursor-development-guide.md), ADR-007, and companion docs in `docs/`.
-
-## Known limitations
-
-- Settings, Telemetry, Terminal trading: placeholders only
-- iOS: not generated or validated
-- Metadata high/low/volume: backend fixtures, not live exchange data
-- Performance: PASS_WITH_PERFORMANCE_RISK (mixed Watchlist p99 113ms tail)
-- No CI yet
-- Production hardening (HTTPS/WSS, observability, crash reporting) deferred
-
-## Delivery documents
-
-- [docs/final-validation.md](docs/final-validation.md) — validation environment, performance table, limitations
-- [docs/submission-handoff.md](docs/submission-handoff.md) — reviewer entry points, run instructions, demo flow
+- Latest-state coalescing over every-tick UI fidelity
+- Backend gateway over direct mobile Binance coupling
+- Mocked metadata where assignment scope allows, clearly disclosed
+- Bounded five-pair `ScrollView` over premature list virtualization
+- Android validation over unverified iOS claims
+- Honest placeholders over fake Settings/Telemetry functionality

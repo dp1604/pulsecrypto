@@ -2,6 +2,10 @@
 
 Status: Accepted
 
+Decision owner: Dinitha Gamage
+
+Scope: PulseCrypto assignment
+
 Date: 2026-07-09
 
 ## Context

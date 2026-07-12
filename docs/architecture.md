@@ -29,7 +29,11 @@ Implemented:
 - Typed Markets → Market Details navigation with pair-specific selectors.
 - Figma-aligned Trading Terminal Market Details: LAST PRICE animation, Order Book, Market Depth.
 - One Watchlist-level Zustand subscription with ten display primitives and bounded five-pair `ScrollView`.
-- Neutral Watchlist prices; green/red 24h direction indicators.
+- Watchlist prices briefly flash buy/sell text color on displayed-price increases/decreases via one list-level controller and one clear timer.
+- Accessible bookmark favourite toggle on Watchlist rows.
+- Market Details Top App Bar uses a back arrow matching `goBack()` navigation.
+- Market Depth bid/ask curves join at a shared C1-continuous center valley with divider rendered behind fills and strokes.
+- Green/red 24h direction indicators on Watchlist.
 - Optimized Android release APK validated on API 35 emulator.
 - Terminal, Telemetry, and Settings remain honest placeholder screens.
 
@@ -130,17 +134,19 @@ High-frequency updates flow through one live store. Rendering minimizes blast ra
 - **Market Details:** pair-specific selectors for price, order book, depth, and connection presentation.
 - **Visual publication:** 250ms coalescing decouples UI commits from 100ms backend cadence.
 
-Persisted favourites are validated on read. Additional persisted cached state requires explicit approval.
+Persisted favourites are validated on read. Additional persisted cached state requires a documented architecture decision.
 
-## Watchlist rendering architecture (STEP-16B)
+## Watchlist rendering architecture
 
-Final Watchlist performance architecture:
+Watchlist performance architecture:
 
 - `WatchlistRows` owns the bounded `ScrollView` for five supported pairs.
 - Exactly one `useMarketsLiveStore` subscription at Watchlist level.
-- `WatchlistLiveValues` is a pure prop-driven view (no store, no animation).
-- Watchlist primary prices remain neutral; 24h change uses directional color and ▲/▼.
-- Watchlist price flash/animation removed; Market Details LAST PRICE retains tick-direction color animation.
+- `WatchlistLiveValues` is a pure prop-driven view (no store subscription).
+- Displayed prices briefly flash buy/sell text color via one list-level highlight controller and one clear timer.
+- 24h change uses directional color and ▲/▼ independently of price-highlight timing.
+- Bookmark favourite toggle replaces the prior text button.
+- Market Details LAST PRICE retains tick-direction color animation.
 
 ## Market Details architecture
 
@@ -177,7 +183,7 @@ Local release evidence used emulator-local HTTP/WS and temporary generated-nativ
 
 ## Performance evidence
 
-Sustained release-runtime profiling completed (STEP-16B / STEP-16B-E1). Classification: **PASS_WITH_PERFORMANCE_RISK**.
+Sustained release-runtime profiling on optimized release APKs. Classification: **PASS_WITH_PERFORMANCE_RISK**.
 
 Key results (reported per workload, not averaged):
 
@@ -185,6 +191,7 @@ Key results (reported per workload, not averaged):
 - Controlled interaction: p99 57ms, max 61ms, 0 frozen
 - Mixed Watchlist: p99 113ms, max 150ms, 0 frozen, bounded memory
 - BTC Details: p99 77ms, max 133ms, 0 frozen, stable memory
+- Latest UX-polish release: idle p99 57ms, interaction p99 85ms, 0 frozen (elevated jank %)
 
 See [final-validation.md](./final-validation.md).
 

@@ -1,6 +1,6 @@
-# PulseCrypto Coding Agent Rules
+# PulseCrypto Development Policy
 
-Mandatory rules for AI-assisted development. **Detailed guidance lives in `docs/`—this file is the enforcement index.**
+Owner-led AI-assisted engineering rules for this repository. **Dinitha Gamage** defines product scope, architecture boundaries, dependency policy, acceptance criteria, and final technical decisions. AI-assisted tools are used within scoped, reviewable change sets governed by those constraints and by evidence-based validation.
 
 Assignment PDF = P0 scope · Figma mockup = UI/UX truth for allowed surfaces · Staff / Mobile Architect JD = quality bar.
 
@@ -8,20 +8,19 @@ Assignment PDF = P0 scope · Figma mockup = UI/UX truth for allowed surfaces · 
 
 | Document | Responsibility |
 | --- | --- |
-| [docs/architecture-principles.md](docs/architecture-principles.md) | Why we architect; boundaries; debt; ADR policy |
-| [docs/cursor-development-guide.md](docs/cursor-development-guide.md) | Cursor workflows, incremental delivery, ChatGPT review, Living Governance |
+| [docs/architecture-principles.md](docs/architecture-principles.md) | Architecture principles; boundaries; ADR policy |
+| [docs/ai-assisted-engineering.md](docs/ai-assisted-engineering.md) | AI tool usage, guardrails, quality gates |
 | [docs/testing-standard.md](docs/testing-standard.md) | What to test; Android/Expo validation |
-| [docs/review-checklist.md](docs/review-checklist.md) | Pre-commit and peer review gates |
-| [docs/reporting-template.md](docs/reporting-template.md) | Task reports, attachments, ZIP policy |
-| [docs/figma-rules.md](docs/figma-rules.md) | Figma MCP usage; P0 vs deferred UI |
-| [docs/ui-guidelines.md](docs/ui-guidelines.md) | Mobile tokens, rendering, placeholders |
+| [docs/review-checklist.md](docs/review-checklist.md) | Pre-commit and release-readiness gates |
 | [docs/architecture.md](docs/architecture.md) | System blueprint and implementation status |
-| [docs/decisions/](docs/decisions/) | ADRs |
+| [docs/decisions/](docs/decisions/) | Architecture decision records |
+| [docs/ai-assisted-development-workflow.md](docs/ai-assisted-development-workflow.md) | Scoped development workflow |
+| [docs/engineering-change-reporting.md](docs/engineering-change-reporting.md) | Engineering change report template |
 
 ## Priority
 
 - Deliver P0 assignment requirements before optional Figma-only or polish work.
-- Do not build functional telemetry, Settings, drawer navigation, shader effects, profile screens, API-key management, or security UI unless a task or ADR promotes them.
+- Do not build functional telemetry, Settings, drawer navigation, shader effects, profile screens, API-key management, or security UI unless scope or an ADR promotes them.
 - Keep documentation honest. Planned, mocked, visual-only, and implemented behavior must be labeled clearly.
 
 ## Architecture boundaries
@@ -35,10 +34,9 @@ No backend logic in mobile. No mobile UI logic in backend. No stateful runtime l
 
 ## Dependency rules
 
-- Do not add dependencies unless the current task authorizes them or an ADR documents the trade-off.
+- Do not add dependencies unless explicitly authorized or documented with a clear trade-off in an ADR.
 - Prefer platform APIs and approved libraries. Verify package APIs against installed code or official docs.
 - Do not run app generators or broad scaffolding unless explicitly requested.
-- After removing a mobile package, ensure no orphan remains in `node_modules` that Metro can still resolve.
 
 ## Generation scope
 
@@ -62,11 +60,10 @@ No backend logic in mobile. No mobile UI logic in backend. No stateful runtime l
 ## Validation and reporting
 
 - Run checks per [docs/testing-standard.md](docs/testing-standard.md).
-- **Must** end every task with exactly one `PULSECRYPTO_CURSOR_REPORT` block per [docs/reporting-template.md](docs/reporting-template.md)—no narrative outside the final fenced block.
-- When any repository file changes, **must** create a review ZIP per [docs/reporting-template.md](docs/reporting-template.md) (mandatory even for documentation-only tasks).
-- Self-review against [docs/review-checklist.md](docs/review-checklist.md) before declaring done.
-- Do not commit, push, or rewrite history unless explicitly requested.
+- Report changed files, commands, results, assumptions, and residual risks.
+- Reconcile conflicting evidence before claiming pass/fail.
+- Do not commit, push, or rewrite history unless explicitly requested by the project owner.
 
-## Living Governance
+## Living governance
 
-Governance evolves deliberately—see [docs/cursor-development-guide.md](docs/cursor-development-guide.md#living-governance). Update one owning document per rule change; do not duplicate across files.
+Update one owning document per rule change. Do not duplicate policy across files.

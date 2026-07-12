@@ -12,7 +12,7 @@ For every UI/UX implementation task, follow the permanent MCP evidence rule in [
 
 - Inspect [Pulse Crypto Mockup](https://www.figma.com/design/JYfr5h2vC9IFKtX3vasmZk/Pulse-Crypto-Mockup?node-id=0-1&p=f) through Figma MCP **before** implementing.
 - Export and use Figma icons, SVGs, and images—do not manually recreate assets that exist in Figma.
-- Screenshots are fallback only; report node IDs, exported paths, and visual deltas in [reporting-template.md](./reporting-template.md).
+- Screenshots are fallback only; report node IDs, exported paths, and visual deltas in [engineering-change-reporting.md](./engineering-change-reporting.md).
 - Do not claim Figma was used unless MCP was invoked in that task.
 
 ## Design tokens
@@ -27,7 +27,7 @@ Use centralized theme tokens—not ad hoc hex in screens.
 | Sell / negative | `#FF3B69` | Negative delta, sell pressure |
 | Text hierarchy | primary / secondary / muted | Titles, body, labels |
 
-New tokens require justification in task report; prefer extending `colors.ts` over inline styles.
+New tokens require justification in the engineering change report; prefer extending `colors.ts` over inline styles.
 
 ## Navigation
 
@@ -40,7 +40,7 @@ New tokens require justification in task report; prefer extending `colors.ts` ov
 - Partition state: connection, metadata, snapshots, favourites, UI filters—separate stores/selectors.
 - Components subscribe via **narrow selectors**; list items re-render only when their pair data changes.
 - Prefer **latest snapshot** display over animating every tick.
-- Watchlist primary prices remain neutral; 24h direction uses color and ▲/▼ without Watchlist price flash.
+- Watchlist uses bookmark favourite control and brief displayed-price text highlighting (one list-level timer); 24h direction uses color and ▲/▼
 - Market Details LAST PRICE retains brief tick-direction color animation; no infinite loops.
 - Order book: animate discrete updates; cap visible depth per assignment and performance review.
 

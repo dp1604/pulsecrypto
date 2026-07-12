@@ -2,6 +2,10 @@
 
 Status: Accepted
 
+Decision owner: Dinitha Gamage
+
+Scope: PulseCrypto assignment
+
 Date: 2026-07-09
 
 ## Context
@@ -21,7 +25,7 @@ Use separated state ownership and selector-based rendering:
 
 Components should subscribe only to the slices they need. High-frequency market updates should not force unrelated rows, search controls, navigation, or favourite state to re-render.
 
-The concrete state library will be chosen when the mobile app is scaffolded. No dependency is approved by this ADR.
+Implementation outcome: Zustand was selected for separated stores and selector-based subscriptions, while AsyncStorage is limited to validated favourites persistence. The selection is covered by store, selector, persistence, and rendering-boundary tests.
 
 ## Consequences
 

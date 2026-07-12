@@ -31,7 +31,7 @@ pnpm test                        # always for behavior changes
 | WebSocket | Connection lifecycle, message shape, slow-consumer policy |
 | Binance adapters | Parser and reconnect policy tests; no live network in CI unit tests |
 
-Current baseline: 65 backend tests and 435 mobile tests (500 workspace executions)—new modules should extend coverage, not regress count silently.
+Current baseline: **65** backend tests and **453** mobile tests (**518** workspace executions)—new modules should extend coverage, not regress count silently.
 
 ### Shared (`packages/shared/`)
 
@@ -64,7 +64,7 @@ Functional mobile UI changes require emulator evidence when the toolchain is ava
 - Tab navigation smoke when navigation changes
 - Release validation evidence recorded in [final-validation.md](./final-validation.md)
 
-Document unverified launch explicitly in the task report. iOS Simulator validation remains deferred.
+Document unverified launch explicitly in the engineering change report. iOS Simulator validation remains deferred.
 
 ## What not to test (assignment scope)
 
@@ -86,12 +86,12 @@ Document unverified launch explicitly in the task report. iOS Simulator validati
 
 ## Evidence in reports
 
-Populate validation fields in the mandatory `PULSECRYPTO_CURSOR_REPORT` block per [reporting-template.md](./reporting-template.md):
+Record in task proof artifacts:
 
 - Command invoked
 - Pass/fail counts
 - New tests added (file + what behavior they lock)
-- Proof artifacts (screenshots, logs) copied to the proof directory with `file:///` links when they exist
+- Proof artifacts (screenshots, logs) with paths when they exist
 
 ## Future additions
 

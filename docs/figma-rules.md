@@ -4,7 +4,7 @@
 
 Official file: [Pulse Crypto Mockup](https://www.figma.com/design/JYfr5h2vC9IFKtX3vasmZk/Pulse-Crypto-Mockup?node-id=0-1&p=f)
 
-UI standards: [ui-guidelines.md](./ui-guidelines.md) · Reports: [reporting-template.md](./reporting-template.md) · ADR: [decisions/ADR-006-figma-ui-scope.md](./decisions/ADR-006-figma-ui-scope.md)
+UI standards: [ui-guidelines.md](./ui-guidelines.md) · Reports: [engineering-change-reporting.md](./engineering-change-reporting.md) · ADR: [decisions/ADR-006-figma-ui-scope.md](./decisions/ADR-006-figma-ui-scope.md)
 
 ## Priority rule
 
@@ -20,7 +20,7 @@ For **every UI/UX implementation task**:
 2. **Use exported Figma assets**—icons, SVGs, images—when they exist and can be exported. Do not manually recreate assets already present in Figma.
 3. **Uploaded screenshots are fallback/reference only**, not a substitute for MCP inspection when MCP is available.
 4. **Do not claim Figma was used** unless MCP was actually invoked in that task.
-5. **Report in** [reporting-template.md](./reporting-template.md):
+5. **Report in** [engineering-change-reporting.md](./engineering-change-reporting.md):
    - MCP availability (available / unavailable + exact error)
    - Figma file URL and **exact node IDs** inspected
    - Screens/components inspected
@@ -38,7 +38,7 @@ If MCP is unavailable, implement assignment-required **behavior** with theme tok
 - Offline / reconnect affordance
 - Pull-to-refresh metadata (without killing WebSocket stream)
 - Market Details LAST PRICE tick-direction animation; Order Book depth transitions; Market Depth presentation
-- Watchlist prices remain neutral without price flash (STEP-16B)
+- Watchlist bookmark favourite toggle; brief displayed-price text highlighting; 24h direction uses color and ▲/▼
 
 ## Deferred unless explicitly promoted
 

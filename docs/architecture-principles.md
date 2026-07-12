@@ -30,7 +30,7 @@ A Staff-level contribution here demonstrates:
 - **System thinking:** ingestion, coalescing, transport, client state, and UI are designed as one pipeline with explicit backpressure.
 - **Trade-off articulation:** every non-obvious choice has a documented alternative and consequence.
 - **Operational realism:** memory bounds, reconnect behavior, slow consumers, and emulator networking are first-class—not appendix notes.
-- **Reviewability:** changes are small enough that a senior engineer can approve them in one sitting.
+- **Reviewability:** changes are small enough for focused review in one sitting.
 
 ## Mobile Architect responsibilities
 
@@ -56,9 +56,9 @@ A Staff-level contribution here demonstrates:
 
 | Change type | Mechanism |
 | --- | --- |
-| Reversible implementation detail | Code + tests; mention in task report |
+| Reversible implementation detail | Code + tests; note in engineering change report |
 | Cross-cutting policy (batching, offline, AI use) | ADR in `docs/decisions/` |
-| Governance process change | Update relevant doc in `docs/` + note in task report; see Living Governance in [cursor-development-guide.md](./cursor-development-guide.md) |
+| Governance process change | Update relevant doc in `docs/` + note in change report; see Living Governance in [ai-assisted-development-workflow.md](./ai-assisted-development-workflow.md) |
 
 ADR template conventions follow existing files `ADR-001` … `ADR-007`. New ADRs use the next sequential number, **Accepted** or **Proposed** status, and explicit consequences.
 
@@ -84,4 +84,4 @@ Current gaps are listed honestly in [README.md](../README.md) and [architecture.
 - [architecture.md](./architecture.md) — system blueprint and status
 - [testing-standard.md](./testing-standard.md) — verification expectations
 - [ui-guidelines.md](./ui-guidelines.md) — mobile rendering discipline
-- [AGENTS.md](../AGENTS.md) — agent enforcement rules
+- [AGENTS.md](../AGENTS.md) — development policy

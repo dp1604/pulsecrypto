@@ -1,10 +1,10 @@
 # Figma asset map
 
-PulseCrypto STEP-14A semantic mapping for exported Figma PNG icons.
+PulseCrypto semantic mapping for exported Figma PNG icons.
 
 Source archive: `icons_and_graphic.zip` (16 usable PNGs, 16 `__MACOSX` AppleDouble entries ignored).
 
-Figma MCP was unavailable for this task; the supplied reference screenshots and pixel inspection were used as the visual authority.
+Figma MCP was unavailable during initial asset export; supplied reference screenshots and pixel inspection were used as the visual authority.
 
 ## Bottom tab icons
 
@@ -19,7 +19,7 @@ Figma MCP was unavailable for this task; the supplied reference screenshots and 
 
 | Original file | Semantic file | Visual | Approved use |
 | --- | --- | --- | --- |
-| Container (4).png | menu.png | Green hamburger menu | Market Details top app bar left action (returns to Markets; no drawer in P0) |
+| Container (4).png | menu.png | Green hamburger menu | **Superseded** — Market Details now uses SVG back arrow (`BackIcon`) matching `goBack()` |
 | Container (5).png | live-signal.png | Green broadcast/live signal | Market Details top app bar right indicator |
 
 ## Reserved (not used on current surfaces)
@@ -32,7 +32,7 @@ Figma MCP was unavailable for this task; the supplied reference screenshots and 
 
 ## Search field
 
-The supplied archive does not include a dedicated plain search icon. STEP-14A removes the incorrect `market-search.png` reuse of `Container (12).png` and keeps a text-only search field with standard padding.
+The supplied archive does not include a dedicated plain search icon. The incorrect `market-search.png` reuse of `Container (12).png` was removed; the search field remains text-only with standard padding.
 
 ## Reference measurements (Market Depth)
 

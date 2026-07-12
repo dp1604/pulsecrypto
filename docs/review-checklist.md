@@ -1,12 +1,12 @@
 # Review Checklist
 
-Use this checklist for **human review**, **ChatGPT review**, and **self-review before commit**.
+Use this checklist for **engineering review** and **pre-commit self-review**.
 
-Companion: [cursor-development-guide.md](./cursor-development-guide.md) · [testing-standard.md](./testing-standard.md) · [architecture-principles.md](./architecture-principles.md)
+Companion: [testing-standard.md](./testing-standard.md) · [architecture-principles.md](./architecture-principles.md) · [ai-assisted-engineering.md](./ai-assisted-engineering.md)
 
 ## Scope and honesty
 
-- [ ] Change set matches task **allowed scope**; no forbidden paths edited
+- [ ] Change set matches allowed scope; no forbidden paths edited
 - [ ] P0 assignment requirements addressed before P1 Figma polish
 - [ ] README / docs / UI do not claim unimplemented auth, security, trading, or live data
 - [ ] Mocked metadata or placeholder screens labeled honestly
@@ -20,8 +20,8 @@ Companion: [cursor-development-guide.md](./cursor-development-guide.md) · [test
 
 ## Dependencies
 
-- [ ] No new packages unless task or ADR authorized them
-- [ ] Versions align with Expo / workspace conventions—not arbitrary pins
+- [ ] No new packages unless explicitly authorized or documented in an ADR
+- [ ] Versions align with Expo / workspace conventions
 - [ ] Lockfile updated only when dependencies intentionally change
 - [ ] Removed packages have no orphan Metro resolution (mobile)
 
@@ -30,7 +30,7 @@ Companion: [cursor-development-guide.md](./cursor-development-guide.md) · [test
 - [ ] External payloads validated before state updates or broadcast
 - [ ] Persisted favourites validated on read
 - [ ] No secrets, API keys, or `.env` committed
-- [ ] No new attack surface (open CORS, unbounded uploads) without ADR
+- [ ] No new attack surface without ADR
 
 ## Performance and scalability
 
@@ -44,76 +44,48 @@ Companion: [cursor-development-guide.md](./cursor-development-guide.md) · [test
 - [ ] `pnpm typecheck` passes for touched workspaces
 - [ ] `pnpm test` passes; new behavior has meaningful tests per [testing-standard.md](./testing-standard.md)
 - [ ] Mobile UI changes: Android emulator proof when feasible
-- [ ] Expo: `expo-doctor` / `expo install --check` run after mobile dependency changes
+- [ ] Expo: `expo-doctor` / `expo install --check` after mobile dependency changes
 
 ## Mobile / Expo specific
 
-- [ ] Markets remains default tab unless task says otherwise
+- [ ] Markets remains default tab unless scope says otherwise
 - [ ] Emulator uses `10.0.2.2` for host backend—not `localhost` inside app
-- [ ] `expo prebuild` / dev-client / release APK only when task authorizes; generated native folders stay gitignored
+- [ ] `expo prebuild` / dev-client / release APK only when authorized; generated native folders stay gitignored
 - [ ] Reanimated/worklets only with full Expo SDK–compatible setup
 
 ## Figma and UI
 
-- [ ] UI/UX tasks: Figma MCP invoked before implementation per [figma-rules.md](./figma-rules.md)
-- [ ] Figma assets exported and used where available; no manual recreation of existing Figma assets
-- [ ] Report lists node IDs, exported paths, screenshot fallback reason (if any), visual deltas
-- [ ] P0 screens match assignment; Figma P1 deferred per [figma-rules.md](./figma-rules.md)
+- [ ] UI/UX tasks: Figma references consulted before implementation per [figma-rules.md](./figma-rules.md)
+- [ ] Figma assets exported and used where available
+- [ ] P0 screens match assignment; optional Figma surfaces deferred
 - [ ] Tokens and layout follow [ui-guidelines.md](./ui-guidelines.md)
-- [ ] No UI kit or icon library added without authorization
 
 ## Documentation and ADRs
 
 - [ ] Significant trade-offs recorded in ADR when cross-cutting
 - [ ] [architecture.md](./architecture.md) updated if system behavior changed
-- [ ] Task ends with exactly one `PULSECRYPTO_CURSOR_REPORT` fenced block per [reporting-template.md](./reporting-template.md)
-- [ ] Proof artifacts copied to proof directory with `file:///` links when they exist
-- [ ] Review ZIP created when any repository file changed (including docs-only)
+- [ ] AI-assisted engineering disclosure remains accurate
+- [ ] Review ZIP created when repository files change (including docs-only)
 
 ## Git and release quality
 
-- [ ] Commit requested explicitly by human
+- [ ] Commit requested explicitly by project owner
 - [ ] Commit message reflects **why**, one intent per commit
 - [ ] No force-push to main; no hook skipping unless requested
-- [ ] `backend/` and `packages/shared/` untouched when mobile-only task (and vice versa)
+- [ ] `backend/` and `packages/shared/` untouched when mobile-only scope (and vice versa)
 
-## Review outcome
+## Release-readiness decision
 
-Record one of:
+Record exactly one:
 
-- **Approve** — meets checklist; residual risks documented
-- **Approve with nits** — merge after trivial doc/wording fixes
-- **Request changes** — blockers listed with file/line or command evidence
-- **Defer** — out of scope; create ADR or follow-up task
+- **READY** — required functionality, architecture, validation, and evidence meet the release criteria.
+- **READY_WITH_DISCLOSED_RISK** — release criteria are substantially met and residual risks are documented.
+- **NOT_READY** — blocking defects or missing evidence remain.
 
-## Staff Engineer Approval Gate
+Required supporting fields:
 
-Final gate—answer only after the checklist above:
-
-**Would I confidently approve this as a Staff Engineer reviewing another Staff Engineer's pull request?**
-
-Required answer: **YES** or **NO**
-
-**If YES:** one concise sentence explaining why the work is ready for approval.
-
-**If NO:** list every blocking concern. For each concern:
-
-- classify as one of: correctness · architecture · maintainability · performance · security · reliability · testing · documentation · product/assignment alignment · evidence/validation
-- specify the required remedy
-- do **not** recommend commit or push until remedied
-
-**Insufficient alone for YES:**
-
-- typecheck passing
-- tests passing
-- visual appearance
-- an agent claiming success
-- scope completion without runtime evidence
-
-**Required for YES:**
-
-- confidence in correctness and assignment alignment
-- sound architecture and maintainability
-- bounded resource behavior and failure handling
-- validation evidence appropriate to the change
-- honest documentation and long-term ownership clarity
+- Decision
+- Evidence reviewed
+- Residual risks
+- Required follow-up
+- Decision date
