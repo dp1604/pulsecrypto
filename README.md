@@ -137,9 +137,11 @@ Default endpoints: `http://localhost:3000` (HTTP), `ws://localhost:3001` (WS).
 pnpm dev:backend
 cd mobile
 CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android   # first time or native dep change
-CI=1 pnpm exec expo run:android --device emulator-5554 --variant debug
+CI=1 pnpm exec expo run:android --device PulseCrypto_API_35 --variant debug
 pnpm exec expo start --dev-client --localhost --port 8081
 ```
+
+`--device` expects the Android Virtual Device name in this workflow, not the adb serial. Reviewers can run `emulator -list-avds` and substitute their installed AVD name.
 
 Environment (with `adb reverse`):
 
