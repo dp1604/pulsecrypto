@@ -52,7 +52,12 @@ export const validateWebSocketUrl = (
     );
   }
 
-  if (options?.requireSecure && parsed.protocol !== "wss:") {
+  const isLoopbackHost =
+    parsed.hostname === "127.0.0.1" ||
+    parsed.hostname === "10.0.2.2" ||
+    parsed.hostname === "localhost";
+
+  if (options?.requireSecure && parsed.protocol !== "wss:" && !isLoopbackHost) {
     throw new ApiError(
       "configuration",
       "WebSocket URL must use wss in non-development builds."

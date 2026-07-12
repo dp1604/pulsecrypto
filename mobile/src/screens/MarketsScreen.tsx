@@ -1,29 +1,29 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  AppState,
-  FlatList,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { PairMeta } from "@pulsecrypto/shared";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { PairSymbol } from "@pulsecrypto/shared";
 import { filterPairs } from "../features/markets/filterPairs";
 import {
-  formatChange24hPercent,
-  formatConnectionStatusLabel,
-  formatLivePrice
+  formatConnectionStatusLabel
 } from "../features/markets/liveMarketFormatting";
 import {
-  createSelectSnapshotByPair,
   selectConnectionError,
-  selectConnectionStatus
+  selectConnectionStatus,
+  selectHasLiveSnapshot,
+  selectReconnectAttempt
 } from "../features/markets/marketsLiveStore";
 import { useMarketsLiveStore } from "../features/markets/marketsLiveStoreInstance";
+import { MarketConnectionChip } from "../features/markets/MarketConnectionChip";
+import { deriveMarketConnectionPresentation } from "../features/markets/marketConnectionPresentation";
 import {
   selectMarketsMetadataError,
   selectMarketsMetadataIsRefreshing,
@@ -38,84 +38,17 @@ import {
   selectPersistenceErrorMessage
 } from "../features/markets/marketsPreferencesStore";
 import { useMarketsPreferencesStore } from "../features/markets/marketsPreferencesStoreInstance";
-import { colors } from "../theme";
+import type { MarketsStackParamList } from "../navigation/types";
+import { colors, typography } from "../theme";
+import { WatchlistRows } from "../features/markets/WatchlistRows";
 
-const formatVolume = (value: number): string => {
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}M`;
-  }
-
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}K`;
-  }
-
-  return value.toLocaleString(undefined, {
-    maximumFractionDigits: 2
-  });
-};
-
-type PairMetadataRowProps = {
-  item: PairMeta;
-  isFavourite: boolean;
-  onToggleFavourite: (pair: string) => void;
-};
-
-const PairMetadataRow = memo(
-  ({ item, isFavourite, onToggleFavourite }: PairMetadataRowProps) => {
-    const snapshot = useMarketsLiveStore(
-      useMemo(() => createSelectSnapshotByPair(item.pair), [item.pair])
-    );
-    const favouriteLabel = isFavourite ? "Favourited" : "Favourite";
-    const livePriceText = snapshot
-      ? formatLivePrice(snapshot.price)
-      : "Waiting for live data";
-    const liveChangeText = snapshot
-      ? formatChange24hPercent(snapshot.change24hPercent)
-      : "Waiting for live data";
-
-    return (
-      <View style={styles.row}>
-        <View style={styles.rowHeader}>
-          <Text style={styles.pairLabel}>{item.displayName}</Text>
-          <Text style={styles.statusLabel}>{item.tradingStatus}</Text>
-        </View>
-        <Text style={styles.symbolLabel}>{item.pair}</Text>
-        <Text
-          accessibilityLabel={`${item.displayName} live price ${livePriceText}`}
-          style={styles.liveValue}
-        >
-          Live price {livePriceText}
-        </Text>
-        <Text
-          accessibilityLabel={`${item.displayName} 24 hour change ${liveChangeText}`}
-          style={styles.liveValue}
-        >
-          24h change {liveChangeText}
-        </Text>
-        <Text style={styles.metaLine}>
-          24h volume {formatVolume(item.volume24h)}
-        </Text>
-        <Text style={styles.metaLine}>
-          24h range {item.low24h.toLocaleString()} -{" "}
-          {item.high24h.toLocaleString()}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${favouriteLabel} ${item.displayName}`}
-          accessibilityState={{ selected: isFavourite }}
-          onPress={() => onToggleFavourite(item.pair)}
-          style={styles.favouriteButton}
-        >
-          <Text style={styles.favouriteButtonText}>{favouriteLabel}</Text>
-        </Pressable>
-      </View>
-    );
-  }
-);
-
-PairMetadataRow.displayName = "PairMetadataRow";
+type WatchlistNavigationProp = NativeStackNavigationProp<
+  MarketsStackParamList,
+  "Watchlist"
+>;
 
 export const MarketsScreen = () => {
+  const navigation = useNavigation<WatchlistNavigationProp>();
   const [searchQuery, setSearchQuery] = useState("");
   const status = useMarketsMetadataStore(selectMarketsMetadataStatus);
   const items = useMarketsMetadataStore(selectMarketsMetadataItems);
@@ -139,10 +72,24 @@ export const MarketsScreen = () => {
   );
   const connectionStatus = useMarketsLiveStore(selectConnectionStatus);
   const connectionErrorMessage = useMarketsLiveStore(selectConnectionError);
-  const startLive = useMarketsLiveStore((state) => state.start);
-  const stopLive = useMarketsLiveStore((state) => state.stop);
-  const setLiveAppActive = useMarketsLiveStore((state) => state.setAppActive);
+  const reconnectAttempt = useMarketsLiveStore(selectReconnectAttempt);
+  const hasLiveSnapshot = useMarketsLiveStore(selectHasLiveSnapshot);
   const reconnectLive = useMarketsLiveStore((state) => state.reconnectNow);
+  const connectionPresentation = useMemo(
+    () =>
+      deriveMarketConnectionPresentation({
+        status: connectionStatus,
+        hasSnapshot: hasLiveSnapshot,
+        reconnectAttempt,
+        connectionErrorMessage
+      }),
+    [
+      connectionStatus,
+      hasLiveSnapshot,
+      reconnectAttempt,
+      connectionErrorMessage
+    ]
+  );
 
   const favouriteSet = useMemo(
     () => new Set(favouriteSymbols),
@@ -155,9 +102,6 @@ export const MarketsScreen = () => {
   );
 
   const connectionLabel = formatConnectionStatusLabel(connectionStatus);
-  const showReconnectAction =
-    connectionStatus === "reconnecting" ||
-    connectionStatus === "disconnected";
 
   useEffect(() => {
     void load();
@@ -170,20 +114,6 @@ export const MarketsScreen = () => {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
-
-  useEffect(() => {
-    setLiveAppActive(AppState.currentState === "active");
-    startLive();
-
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      setLiveAppActive(nextState === "active");
-    });
-
-    return () => {
-      subscription.remove();
-      stopLive();
-    };
-  }, [startLive, stopLive, setLiveAppActive]);
 
   const handleRetry = useCallback(() => {
     void retry();
@@ -204,65 +134,76 @@ export const MarketsScreen = () => {
     [toggleFavourite]
   );
 
-  const renderItem = useCallback(
-    ({ item }: { item: PairMeta }) => (
-      <PairMetadataRow
-        item={item}
-        isFavourite={favouriteSet.has(item.pair)}
-        onToggleFavourite={handleToggleFavourite}
-      />
-    ),
-    [favouriteSet, handleToggleFavourite]
+  const handleOpenDetails = useCallback(
+    (pair: PairSymbol) => {
+      navigation.navigate("MarketDetails", { pair });
+    },
+    [navigation]
   );
-
-  const keyExtractor = useCallback((item: PairMeta) => item.pair, []);
 
   const showList = status === "success";
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        <Text style={styles.title}>Markets</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Markets</Text>
+          <MarketConnectionChip
+            presentation={connectionPresentation}
+            onRetry={
+              connectionPresentation.showRetry ? handleReconnect : undefined
+            }
+          />
+        </View>
         <Text style={styles.subtitle}>
-          Supported pair metadata from the PulseCrypto backend. Volume and range
-          are assignment fixtures; live prices and 24-hour change come from the
-          validated WebSocket stream.
+          Live prices and 24-hour change from the validated WebSocket stream.
+          High, low, and volume are REST fixture metadata.
         </Text>
+
+        {connectionPresentation.showLastKnown ? (
+          <Text style={styles.lastKnownBadge}>LAST KNOWN</Text>
+        ) : null}
+
+        {connectionPresentation.showPersistentAlert &&
+        connectionPresentation.persistentAlertMessage ? (
+          <View accessibilityRole="alert" style={styles.persistentAlertCard}>
+            <Text style={styles.persistentAlertText}>
+              {connectionPresentation.persistentAlertMessage}
+            </Text>
+            {connectionPresentation.showRetry ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry live market connection"
+                onPress={handleReconnect}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>Retry connection</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <Text
           accessibilityLiveRegion="polite"
           accessibilityLabel={connectionLabel}
-          style={styles.connectionStatus}
+          style={styles.srOnly}
         >
           {connectionLabel}
         </Text>
 
-        {connectionErrorMessage ? (
-          <Text style={styles.warningText}>{connectionErrorMessage}</Text>
-        ) : null}
-
-        {showReconnectAction ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Retry live market connection"
-            onPress={handleReconnect}
-            style={styles.retryButton}
-          >
-            <Text style={styles.retryButtonText}>Retry connection</Text>
-          </Pressable>
-        ) : null}
-
         {status === "success" ? (
-          <TextInput
-            accessibilityLabel="Search supported pairs"
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setSearchQuery}
-            placeholder="Search pairs"
-            placeholderTextColor={colors.textMuted}
-            style={styles.searchInput}
-            value={searchQuery}
-          />
+          <View style={styles.searchField}>
+            <TextInput
+              accessibilityLabel="Search supported pairs"
+              autoCapitalize="none"
+              autoCorrect={false}
+              onChangeText={setSearchQuery}
+              placeholder="Search pairs"
+              placeholderTextColor={colors.textMuted}
+              style={styles.searchInput}
+              value={searchQuery}
+            />
+          </View>
         ) : null}
 
         {persistenceErrorMessage ? (
@@ -299,31 +240,14 @@ export const MarketsScreen = () => {
         ) : null}
 
         {showList ? (
-          <FlatList
-            data={filteredItems}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            accessibilityLabel="Supported pair metadata list"
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-                tintColor={colors.buy}
-                colors={[colors.buy]}
-              />
-            }
-            ListEmptyComponent={
-              searchQuery.trim().length > 0 ? (
-                <View style={styles.centeredState}>
-                  <Text style={styles.stateTitle}>No matching pairs</Text>
-                  <Text style={styles.stateText}>
-                    Try a different symbol or display name.
-                  </Text>
-                </View>
-              ) : null
-            }
+          <WatchlistRows
+            favouriteSet={favouriteSet}
+            isRefreshing={isRefreshing}
+            items={filteredItems}
+            onOpenDetails={handleOpenDetails}
+            onRefresh={handleRefresh}
+            onToggleFavourite={handleToggleFavourite}
+            showEmptySearch={searchQuery.trim().length > 0 && filteredItems.length === 0}
           />
         ) : null}
 
@@ -371,33 +295,70 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 16,
+    gap: 10
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 12
   },
   title: {
+    ...typography.screenTitle,
     color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700"
+    flex: 1
   },
   subtitle: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22
+    ...typography.bodySecondary,
+    color: colors.textSecondary
   },
-  connectionStatus: {
+  lastKnownBadge: {
+    ...typography.sectionEyebrow,
+    alignSelf: "flex-start",
+    color: colors.textMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  persistentAlertCard: {
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.sell,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  persistentAlertText: {
     color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600"
+    fontSize: 13,
+    lineHeight: 18
   },
-  searchInput: {
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0
+  },
+  searchField: {
     minHeight: 44,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12
+  },
+  searchInput: {
+    ...typography.searchInput,
+    flex: 1,
+    minHeight: 42,
     color: colors.textPrimary,
-    paddingHorizontal: 14,
-    fontSize: 16
+    paddingVertical: 10
   },
   helperText: {
     color: colors.textMuted,
@@ -408,70 +369,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20
   },
-  listContent: {
-    paddingTop: 8,
-    paddingBottom: 24,
-    flexGrow: 1
-  },
-  row: {
-    paddingVertical: 14,
-    gap: 4
-  },
-  rowHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12
-  },
-  pairLabel: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "600",
-    flex: 1
-  },
-  statusLabel: {
-    color: colors.buy,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.6
-  },
-  symbolLabel: {
-    color: colors.textMuted,
-    fontSize: 13
-  },
-  liveValue: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    lineHeight: 22
-  },
-  metaLine: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20
-  },
-  favouriteButton: {
-    alignSelf: "flex-start",
-    marginTop: 8,
-    minHeight: 44,
-    minWidth: 120,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10
-  },
-  favouriteButtonText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  separator: {
-    height: 1,
-    backgroundColor: colors.border
-  },
   centeredState: {
     marginTop: 24,
     alignItems: "center",
@@ -479,15 +376,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12
   },
   stateTitle: {
+    ...typography.placeholderTitle,
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "600",
     textAlign: "center"
   },
   stateText: {
+    ...typography.placeholderBody,
     color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
     textAlign: "center"
   },
   retryButton: {

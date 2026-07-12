@@ -6,9 +6,11 @@ import {
   initialMarketsLiveState,
   selectConnectionError,
   selectConnectionStatus,
+  selectHasLiveSnapshot,
   selectLastBatchReceivedAt,
   selectReconnectAttempt
 } from "./marketsLiveStore";
+import { DEFAULT_MARKET_DISPLAY_PUBLISH_INTERVAL_MS } from "./marketDisplayCoalescer";
 import {
   WEB_SOCKET_CLOSED,
   WEB_SOCKET_CONNECTING,
@@ -95,19 +97,18 @@ describe("marketsLiveStore", () => {
     vi.useRealTimers();
   });
 
-  const createStore = () => {
-    const setTimeoutImpl = vi.fn((handler: () => void, delay?: number) =>
-      setTimeout(handler, delay)
-    );
-
-    return createMarketsLiveStore({
+  const createStore = () =>
+    createMarketsLiveStore({
       getWebSocketUrl: () => "ws://127.0.0.1:3001",
       createWebSocket: (url) => new FakeWebSocket(url),
-      setTimeout: setTimeoutImpl as unknown as typeof setTimeout,
-      clearTimeout: clearTimeout as typeof clearTimeout,
+      setTimeout,
+      clearTimeout,
       random: () => 0,
       now: () => 2_000
     });
+
+  const flushDisplayCoalescer = () => {
+    vi.advanceTimersByTime(DEFAULT_MARKET_DISPLAY_PUBLISH_INTERVAL_MS);
   };
 
   it("starts with initial state", () => {
@@ -164,6 +165,7 @@ describe("marketsLiveStore", () => {
     latestSocket().simulateMessage(
       makeBatch(2, [validSnapshot({ price: 51000, lastUpdated: 2000 })])
     );
+    flushDisplayCoalescer();
 
     expect(createSelectSnapshotByPair("BTCUSDT")(store.getState())?.price).toBe(
       51000
@@ -186,6 +188,7 @@ describe("marketsLiveStore", () => {
       ])
     );
     latestSocket().simulateMessage(makeBatch(2, [validSnapshot({ lastUpdated: 2000 })]));
+    flushDisplayCoalescer();
 
     expect(createSelectSnapshotByPair("ETHUSDT")(store.getState())?.pair).toBe(
       "ETHUSDT"
@@ -203,6 +206,7 @@ describe("marketsLiveStore", () => {
     latestSocket().simulateMessage(
       makeBatch(2, [validSnapshot({ price: 49000, lastUpdated: 2500 })])
     );
+    flushDisplayCoalescer();
 
     expect(createSelectSnapshotByPair("BTCUSDT")(store.getState())?.price).toBe(
       52000
@@ -320,5 +324,60 @@ describe("marketsLiveStore", () => {
     store.getState().reconnectNow();
 
     expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("retains last-known snapshots while reconnecting for details presentation", () => {
+    const store = createStore();
+
+    store.setState({
+      connectionStatus: "reconnecting",
+      snapshotsByPair: {
+        ETHUSDT: validSnapshot({
+          pair: "ETHUSDT",
+          displayName: "ETH / USDT",
+          price: 3200,
+          change24hPercent: -0.5,
+          lastUpdated: 1_700_000_000_000
+        })
+      }
+    });
+
+    expect(createSelectSnapshotByPair("ETHUSDT")(store.getState())?.price).toBe(
+      3200
+    );
+    expect(selectConnectionStatus(store.getState())).toBe("reconnecting");
+  });
+
+  it("selectHasLiveSnapshot is false before first publish", () => {
+    const store = createStore();
+
+    expect(selectHasLiveSnapshot(store.getState())).toBe(false);
+  });
+
+  it("selectHasLiveSnapshot becomes true after first publish and stays stable", () => {
+    const store = createStore();
+
+    store.getState().start();
+    latestSocket().simulateOpen();
+    latestSocket().simulateMessage(makeBatch(1));
+
+    expect(selectHasLiveSnapshot(store.getState())).toBe(true);
+    const firstTimestamp = selectLastBatchReceivedAt(store.getState());
+
+    latestSocket().simulateMessage(
+      makeBatch(2, [validSnapshot({ price: 50100, lastUpdated: 3000 })])
+    );
+    flushDisplayCoalescer();
+
+    expect(selectHasLiveSnapshot(store.getState())).toBe(true);
+    expect(createSelectSnapshotByPair("BTCUSDT")(store.getState())?.price).toBe(
+      50100
+    );
+    expect(selectHasLiveSnapshot(store.getState())).toBe(
+      selectHasLiveSnapshot({
+        ...store.getState(),
+        lastBatchReceivedAt: firstTimestamp
+      })
+    );
   });
 });

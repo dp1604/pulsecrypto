@@ -1,6 +1,10 @@
 import type { MarketSnapshot, PairSymbol } from "@pulsecrypto/shared";
 import { create } from "zustand";
 import {
+  createMarketDisplayCoalescer,
+  type MarketDisplayCoalescer
+} from "./marketDisplayCoalescer";
+import {
   createMarketWebSocketController,
   type MarketConnectionStatus,
   type MarketWebSocketController,
@@ -49,9 +53,35 @@ export const createMarketsLiveStore = (
   options: CreateMarketsLiveStoreOptions
 ) => {
   let controller: MarketWebSocketController | null = null;
+  let displayCoalescer: MarketDisplayCoalescer | null = null;
   let lifecycleStarted = false;
+  const setTimeoutFn = options.setTimeout ?? setTimeout;
+  const clearTimeoutFn = options.clearTimeout ?? clearTimeout;
+  const nowFn = options.now ?? (() => Date.now());
 
-  return create<MarketsLiveStore>((set) => {
+  return create<MarketsLiveStore>((set, get) => {
+    const ensureDisplayCoalescer = () => {
+      if (displayCoalescer !== null) {
+        return displayCoalescer;
+      }
+
+      displayCoalescer = createMarketDisplayCoalescer({
+        setTimeout: setTimeoutFn,
+        clearTimeout: clearTimeoutFn,
+        now: nowFn,
+        onPublish: (payload) => {
+          set({
+            snapshotsByPair: payload.snapshotsByPair,
+            lastAcceptedSequence: payload.lastAcceptedSequence,
+            lastBatchReceivedAt: payload.lastBatchReceivedAt,
+            connectionErrorMessage: null
+          });
+        }
+      });
+
+      return displayCoalescer;
+    };
+
     const ensureController = () => {
       if (controller !== null) {
         return controller;
@@ -66,6 +96,10 @@ export const createMarketsLiveStore = (
         now: options.now,
         callbacks: {
           onConnectionState: ({ status, reconnectAttempt, errorMessage }) => {
+            if (status === "connecting" || status === "reconnecting") {
+              ensureDisplayCoalescer().markSessionStart();
+            }
+
             set({
               connectionStatus: status,
               reconnectAttempt,
@@ -73,29 +107,7 @@ export const createMarketsLiveStore = (
             });
           },
           onMarketBatch: (batch) => {
-            set((state) => {
-              const nextSnapshots = { ...state.snapshotsByPair };
-
-              for (const snapshot of batch.pairs) {
-                const existing = nextSnapshots[snapshot.pair];
-
-                if (
-                  existing !== undefined &&
-                  snapshot.lastUpdated < existing.lastUpdated
-                ) {
-                  continue;
-                }
-
-                nextSnapshots[snapshot.pair] = snapshot;
-              }
-
-              return {
-                snapshotsByPair: nextSnapshots,
-                lastAcceptedSequence: batch.sequence,
-                lastBatchReceivedAt: options.now?.() ?? Date.now(),
-                connectionErrorMessage: null
-              };
-            });
+            ensureDisplayCoalescer().acceptBatch(batch, get().snapshotsByPair);
           }
         }
       });
@@ -108,6 +120,7 @@ export const createMarketsLiveStore = (
 
       start: () => {
         const activeController = ensureController();
+        ensureDisplayCoalescer().markSessionStart();
 
         if (lifecycleStarted) {
           activeController.start();
@@ -119,6 +132,8 @@ export const createMarketsLiveStore = (
       },
 
       stop: () => {
+        ensureDisplayCoalescer().stop();
+
         if (controller === null) {
           set({ connectionStatus: "disconnected" });
           return;
@@ -129,6 +144,14 @@ export const createMarketsLiveStore = (
       },
 
       setAppActive: (active: boolean) => {
+        const coalescer = ensureDisplayCoalescer();
+
+        if (active) {
+          coalescer.resume();
+        } else {
+          coalescer.pause();
+        }
+
         ensureController().setAppActive(active);
       },
 
@@ -151,6 +174,17 @@ export const selectReconnectAttempt = (state: MarketsLiveStore) =>
 export const selectLastBatchReceivedAt = (state: MarketsLiveStore) =>
   state.lastBatchReceivedAt;
 
+export const selectHasLiveSnapshot = (state: MarketsLiveStore) =>
+  state.lastBatchReceivedAt !== null;
+
 export const createSelectSnapshotByPair =
   (pair: PairSymbol) => (state: MarketsLiveStore) =>
     state.snapshotsByPair[pair];
+
+export const createSelectSnapshotPriceByPair =
+  (pair: PairSymbol) => (state: MarketsLiveStore) =>
+    state.snapshotsByPair[pair]?.price;
+
+export const createSelectSnapshotChange24hByPair =
+  (pair: PairSymbol) => (state: MarketsLiveStore) =>
+    state.snapshotsByPair[pair]?.change24hPercent;

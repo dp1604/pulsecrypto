@@ -1,46 +1,13 @@
 import type { MarketConnectionStatus } from "./marketWebSocketClient";
+import {
+  formatMarketPrice,
+  formatPercentage
+} from "./marketNumberPresentation";
 
-export const formatLivePrice = (value: number): string => {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
+export const formatLivePrice = (value: number): string => formatMarketPrice(value);
 
-  if (value === 0) {
-    return "0";
-  }
-
-  const abs = Math.abs(value);
-
-  if (abs >= 1_000) {
-    return value.toFixed(2);
-  }
-
-  if (abs >= 1) {
-    return value.toFixed(4);
-  }
-
-  if (abs >= 0.01) {
-    return value.toFixed(6);
-  }
-
-  return value.toFixed(8);
-};
-
-export const formatChange24hPercent = (value: number): string => {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-
-  if (value > 0) {
-    return `+${value.toFixed(2)}%`;
-  }
-
-  if (value < 0) {
-    return `${value.toFixed(2)}%`;
-  }
-
-  return "0.00%";
-};
+export const formatChange24hPercent = (value: number): string =>
+  formatPercentage(value);
 
 export const formatConnectionStatusLabel = (
   status: MarketConnectionStatus

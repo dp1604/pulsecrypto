@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors } from "../theme";
+import { colors, typography } from "../theme";
 
 type PlaceholderScreenProps = {
   title: string;
@@ -37,14 +37,14 @@ const styles = StyleSheet.create({
     gap: 12
   },
   title: {
+    ...typography.screenTitle,
     color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700"
+    fontSize: 28
   },
   subtitle: {
+    ...typography.placeholderBody,
     color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22
+    fontSize: 15
   },
   noteCard: {
     marginTop: 12,
@@ -56,15 +56,12 @@ const styles = StyleSheet.create({
     gap: 8
   },
   noteLabel: {
+    ...typography.sectionEyebrow,
     color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    textTransform: "uppercase"
+    fontSize: 12
   },
   note: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20
+    ...typography.bodySecondary,
+    color: colors.textSecondary
   }
 });

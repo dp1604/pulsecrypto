@@ -7,11 +7,11 @@ import {
 
 describe("liveMarketFormatting", () => {
   it("formats a large BTC-like price", () => {
-    expect(formatLivePrice(68432.17)).toBe("68432.17");
+    expect(formatLivePrice(68432.17)).toBe("68,432.17");
   });
 
   it("formats a medium ETH/SOL-like price", () => {
-    expect(formatLivePrice(2456.7891)).toBe("2456.79");
+    expect(formatLivePrice(2456.7891)).toBe("2,456.79");
   });
 
   it("formats a small DOGE/XRP-like price", () => {
@@ -19,7 +19,7 @@ describe("liveMarketFormatting", () => {
   });
 
   it("formats zero neutrally", () => {
-    expect(formatLivePrice(0)).toBe("0");
+    expect(formatLivePrice(0)).toBe("0.00");
     expect(formatChange24hPercent(0)).toBe("0.00%");
   });
 

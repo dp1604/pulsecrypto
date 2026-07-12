@@ -24,10 +24,19 @@ describe("webSocketUrl", () => {
     ).toBe("wss://api.example.com");
   });
 
-  it("rejects production ws", () => {
+  it("rejects production ws for remote hosts", () => {
     expect(() =>
       validateWebSocketUrl("ws://api.example.com", { requireSecure: true })
     ).toThrow(ApiError);
+  });
+
+  it("allows production ws for loopback emulator hosts", () => {
+    expect(
+      validateWebSocketUrl("ws://10.0.2.2:3001", { requireSecure: true })
+    ).toBe("ws://10.0.2.2:3001");
+    expect(
+      validateWebSocketUrl("ws://127.0.0.1:3001", { requireSecure: true })
+    ).toBe("ws://127.0.0.1:3001");
   });
 
   it("uses Android emulator development fallback", () => {

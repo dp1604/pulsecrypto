@@ -1,4 +1,4 @@
-import type { PairMeta } from "@pulsecrypto/shared";
+import type { PairMeta, PairSymbol } from "@pulsecrypto/shared";
 import { create } from "zustand";
 import { isAbortError, toUserFacingMessage } from "../../api/errors";
 import { createHttpClient } from "../../api/httpClient";
@@ -263,5 +263,9 @@ export const selectMarketsMetadataIsRefreshing = (
 export const selectMarketsMetadataLastLoadedAt = (
   state: MarketsMetadataStore
 ) => state.lastLoadedAt;
+
+export const createSelectMetadataByPair =
+  (pair: PairSymbol) => (state: MarketsMetadataStore) =>
+    state.items.find((item) => item.pair === pair);
 
 export type { PairMeta };

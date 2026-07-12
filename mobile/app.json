@@ -11,6 +11,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.dinithagamage.pulsecrypto",
       "adaptiveIcon": {
         "backgroundColor": "#0B0E14",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,6 +20,17 @@
       },
       "predictiveBackGestureEnabled": false
     },
+    "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "launchMode": "most-recent",
+          "android": {
+            "launchMode": "most-recent"
+          }
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }
