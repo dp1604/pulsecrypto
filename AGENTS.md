@@ -1,6 +1,6 @@
 # PulseCrypto Development Policy
 
-Owner-led AI-assisted engineering rules for this repository. **Dinitha Gamage** defines product scope, architecture boundaries, dependency policy, acceptance criteria, and final technical decisions. AI-assisted tools are used within scoped, reviewable change sets governed by those constraints and by evidence-based validation.
+Owner-led AI-assisted engineering rules for this repository. **I** define product scope, architecture boundaries, dependency policy, acceptance criteria, and final technical decisions. AI-assisted tools are used within scoped, reviewable change sets governed by those constraints and by evidence-based validation.
 
 Assignment PDF = P0 scope · Figma mockup = UI/UX truth for allowed surfaces · Staff / Mobile Architect JD = quality bar.
 
