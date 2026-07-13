@@ -77,32 +77,114 @@ Release-runtime profiling on the optimized APK is classified **PASS_WITH_PERFORM
 
 See [docs/final-validation.md](docs/final-validation.md).
 
-## Setup and validation
+## Prerequisites
+
+| Tool | Requirement |
+| --- | --- |
+| Git | Clone and verify commit |
+| Node.js | 22.x used in validation |
+| Corepack | Enables repository-declared pnpm |
+| pnpm | **9.12.3** (`packageManager` in root `package.json`) |
+| JDK | **17** for Android native builds (JDK 25 caused native build failures in an independent review environment) |
+| Android Studio + SDK | Emulator, platform tools, build tools |
+| Android Emulator | Mandatory validated mobile target |
+
+Supported host platforms:
+
+| Host | Status |
+| --- | --- |
+| macOS | **Validated** with Android Emulator |
+| Windows 10/11 | Expected to work; see PowerShell notes in [docs/setup-build-run.md](docs/setup-build-run.md) |
+| Linux | Expected to work; not independently validated on this host |
+| WSL | Backend and tests only; not recommended for Android Emulator |
+| iOS (optional) | Requires macOS + Xcode; **not validated** for this assignment |
+
+## Quick start
+
+```bash
+git clone https://github.com/dp1604/pulsecrypto.git
+cd pulsecrypto
+corepack enable
+CI=1 pnpm install --frozen-lockfile --reporter=append-only
+pnpm typecheck
+pnpm test
+```
+
+**Terminal 1 — backend (default ports 3000 HTTP / 3001 WebSocket):**
+
+```bash
+pnpm dev:backend
+```
+
+**Terminal 2 — Android development client (JDK 17 required):**
+
+```bash
+cd mobile
+CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android
+CI=1 pnpm exec expo run:android --device <your-avd-or-serial> --variant debug
+```
+
+Android Emulator development builds default to `http://10.0.2.2:3000` and `ws://10.0.2.2:3001` when `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_WS_URL` are unset. For alternate backend ports, set both variables to matching values before building or starting Metro.
+
+Windows PowerShell equivalents, occupied-port handling, and `adb reverse` workflows: [docs/setup-build-run.md](docs/setup-build-run.md).
+
+## Build and validation
 
 ```bash
 CI=1 pnpm install --frozen-lockfile --reporter=append-only
 pnpm typecheck
 pnpm test
-cd mobile && pnpm dlx expo-doctor
-pnpm exec expo install --check
+pnpm --filter @pulsecrypto/mobile typecheck
+pnpm --filter @pulsecrypto/backend test
+pnpm --filter @pulsecrypto/mobile exec expo install --check
+cd mobile && pnpm dlx expo-doctor && cd ..
+git diff --check
 ```
 
-Backend:
+Android native build and APK guidance:
 
 ```bash
-pnpm dev:backend
-```
-
-Mobile development client (Android AVD workflow):
-
-```bash
-pnpm dev:backend
 cd mobile
 CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android
-CI=1 pnpm exec expo run:android --device PulseCrypto_API_35 --variant debug
+cd android
+./gradlew :app:assembleRelease -x lint -x test --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
 ```
 
-Generated `mobile/android` and `mobile/ios` are gitignored.
+Set `JAVA_HOME` to JDK 17 for Gradle. Output APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`. Assignment APKs may be release-mode while still using development signing; they are not Play Store production-signed artifacts.
+
+Full step-by-step instructions: [docs/setup-build-run.md](docs/setup-build-run.md)
+
+## Supported environments
+
+See the host table in [docs/setup-build-run.md](docs/setup-build-run.md). Android Emulator is the mandatory validated target. iOS remains optional and unvalidated.
+
+## Documentation
+
+| Guide | Purpose |
+| --- | --- |
+| [docs/setup-build-run.md](docs/setup-build-run.md) | Full human setup, build, run, APK, and troubleshooting guide |
+| [docs/ai-reviewer-setup-build-run.md](docs/ai-reviewer-setup-build-run.md) | Deterministic fresh-clone instructions for an AI reviewing agent |
+
+## Running the project with an AI reviewer
+
+Copy this instruction to an AI agent:
+
+> Clone the repository into a fresh disposable directory and follow `docs/ai-reviewer-setup-build-run.md` exactly. Do not use pre-existing local PulseCrypto files, prior reports, ZIP archives, deliverables folders, or previous review context. Record all commands, evidence, environment interventions, and the final repository status.
+
+The AI guide requires a fresh clone, static validation, backend startup, Android build/run where supported, runtime and reconnect checks, preserved evidence, and no tracked source modifications.
+
+## Troubleshooting highlights
+
+- Use **JDK 17** for Android native builds.
+- Android Emulator maps the host through **`10.0.2.2`**, not `127.0.0.1`.
+- Default backend ports are **3000** (HTTP) and **3001** (WebSocket); use `HTTP_PORT` and `WS_PORT` for alternates.
+- If default ports are occupied, choose alternate ports and set matching `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_WS_URL`.
+- Windows reviewers should use PowerShell `$env:NAME = "value"` syntax (see full guide).
+- WSL is suitable for backend/tests, not the recommended Android Emulator host.
+- iOS is optional and not assignment-validated.
+- Reconnect behavior requires explicit runtime verification; see [docs/setup-build-run.md](docs/setup-build-run.md).
+
+Detailed troubleshooting: [docs/setup-build-run.md](docs/setup-build-run.md)
 
 ## Testing
 
@@ -128,6 +210,8 @@ Full disclosure: [docs/ai-assisted-engineering.md](docs/ai-assisted-engineering.
 
 | Topic | Path |
 | --- | --- |
+| Setup, build, and run | [docs/setup-build-run.md](docs/setup-build-run.md) |
+| AI reviewer guide | [docs/ai-reviewer-setup-build-run.md](docs/ai-reviewer-setup-build-run.md) |
 | Architecture blueprint | [docs/architecture.md](docs/architecture.md) |
 | ADRs | [docs/decisions/](docs/decisions/) |
 | Submission handoff | [docs/submission-handoff.md](docs/submission-handoff.md) |
