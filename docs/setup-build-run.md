@@ -183,7 +183,9 @@ If your counts differ after pulling a newer commit, treat your local run as sour
 | HTTP REST | 3000 | `HTTP_PORT` |
 | WebSocket | 3001 | `WS_PORT` |
 
-Other backend environment variables parsed in `backend/src/config/env.ts`:
+Other backend environment variables:
+
+**Parsed in `backend/src/config/env.ts`:**
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -192,6 +194,11 @@ Other backend environment variables parsed in `backend/src/config/env.ts`:
 | `WS_MAX_BUFFERED_AMOUNT_BYTES` | `1000000` | Slow-consumer buffer threshold |
 | `WS_MAX_CONSECUTIVE_SLOW_TICKS` | `5` | Consecutive slow ticks before client close |
 | `WS_HEARTBEAT_INTERVAL_MS` | `30000` | WebSocket heartbeat interval |
+
+**Read in `backend/src/index.ts`:**
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
 | `BINANCE_ENABLED` | `true` | Disable with `0`, `false`, `no`, or `off` |
 | `BINANCE_STREAM_BASE_URL` | Binance default | Optional override for stream base URL |
 
@@ -434,17 +441,20 @@ After a development client is installed on the emulator, subsequent JavaScript-o
 pnpm dev:backend
 ```
 
-**Terminal 2:** Metro dev client
+**Terminal 2:** Metro dev client (cross-platform)
 
 ```bash
 cd mobile
 pnpm exec expo start --dev-client --localhost --port 8081
 ```
 
-Or from repository root:
+**macOS / Linux shortcut only:** the root `pnpm dev:mobile` script uses POSIX inline environment syntax (`HOST=127.0.0.1 NODE_OPTIONS=...`) and is **not** PowerShell-compatible.
 
-```bash
-pnpm dev:mobile
+**Windows PowerShell:**
+
+```powershell
+cd mobile
+pnpm exec expo start --dev-client --localhost --port 8081
 ```
 
 Then open the installed dev client on the emulator and connect to Metro.
@@ -480,7 +490,7 @@ export EXPO_PUBLIC_WS_URL=ws://10.0.2.2:3001
 ./gradlew :app:assembleRelease -x lint -x test --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
 ```
 
-**Windows PowerShell:**
+### Windows PowerShell release build
 
 ```powershell
 cd mobile

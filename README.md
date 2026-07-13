@@ -141,14 +141,21 @@ cd mobile && pnpm dlx expo-doctor && cd ..
 git diff --check
 ```
 
-Android native build and APK guidance:
+Android native build and APK guidance (assignment-local Android Emulator example — not production cleartext policy):
 
 ```bash
 cd mobile
 CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android
 cd android
+export JAVA_HOME=<path-to-jdk-17>
+export EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000
+export EXPO_PUBLIC_WS_URL=ws://10.0.2.2:3001
 ./gradlew :app:assembleRelease -x lint -x test --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
 ```
+
+Substitute matching host and port values when using a physical device, iOS Simulator, alternate backend ports, or a remote endpoint. Production deployment requires HTTPS/WSS and operational hardening; do not use cleartext HTTP/WS outside local assignment validation.
+
+Windows PowerShell release build: [docs/setup-build-run.md — Windows PowerShell release build](docs/setup-build-run.md).
 
 Set `JAVA_HOME` to JDK 17 for Gradle. Output APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`. Assignment APKs may be release-mode while still using development signing; they are not Play Store production-signed artifacts.
 

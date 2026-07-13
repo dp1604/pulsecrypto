@@ -16,7 +16,7 @@ The AI agent **must**:
 6. **Not** modify tracked project files.
 7. Permit generated ignored build artifacts only (`node_modules`, `.expo`, `mobile/android`, `mobile/ios`, build outputs).
 8. Distinguish environment failures from product failures.
-9. Preserve command output verbatim in the final report.
+9. Preserve complete logs as review artifacts and include the relevant command, exit status, and key output excerpts in the final report.
 10. Clean up **only task-owned processes** started during this review.
 
 The AI agent **must not** silently substitute tools, Node versions, pnpm versions, or JDK versions.
@@ -172,45 +172,90 @@ If counts differ, report what you observed; do not copy stale numbers.
 
 ## 8. Backend execution
 
-### Procedure
+### Select ports first
 
-1. Check whether ports **3000** and **3001** are free.
-2. Use default ports when available.
-3. If occupied, choose bounded alternate ports (for example `3010` / `3011`) and record them.
-4. Export matching mobile `EXPO_PUBLIC_*` URLs before Android launch when alternates are used.
-5. Start **one** task-owned backend with `pnpm dev:backend`.
-6. Wait up to **30 seconds** for readiness.
-7. Verify `GET /health`.
-8. Verify `GET /pairs/meta` returns five pairs.
-9. Verify at least one valid live WebSocket batch on `ws://127.0.0.1:<WS_PORT>` containing all five supported pairs.
-10. Measure a short publication-cadence sample (~2 seconds) and note approximate batch interval near **100ms**.
-11. Save backend logs to the review artifact directory.
+Before starting the backend, choose and record:
 
-### Default start
+- `<selected-http-port>`
+- `<selected-ws-port>`
+
+Use defaults **3000** and **3001** when free. If occupied, choose bounded alternates (for example **3010** / **3011**) and use those values consistently in every later step.
+
+**Bash / zsh:**
 
 ```bash
+SELECTED_HTTP_PORT=3000
+SELECTED_WS_PORT=3001
+```
+
+**PowerShell:**
+
+```powershell
+$SelectedHttpPort = 3000
+$SelectedWsPort = 3001
+```
+
+### Procedure
+
+1. Check whether default ports **3000** and **3001** are free.
+2. Set `SELECTED_HTTP_PORT` / `SELECTED_WS_PORT` (or `$SelectedHttpPort` / `$SelectedWsPort`) to defaults or alternates.
+3. Export matching mobile `EXPO_PUBLIC_*` URLs before Android launch using the selected ports.
+4. Start **one** task-owned backend with the selected ports.
+5. Wait up to **30 seconds** for readiness.
+6. Verify `GET /health` on the selected HTTP port.
+7. Verify `GET /pairs/meta` on the selected HTTP port returns five pairs.
+8. Verify at least one valid live WebSocket batch on `ws://127.0.0.1:<selected-ws-port>` containing all five supported pairs.
+9. Measure a short publication-cadence sample (~2 seconds) and note approximate batch interval near **100ms**.
+10. Save backend logs to the review artifact directory.
+
+### Default start (Bash / zsh)
+
+```bash
+SELECTED_HTTP_PORT=3000
+SELECTED_WS_PORT=3001
 pnpm dev:backend
 ```
 
-### Alternate ports (Bash)
+### Default start (PowerShell)
+
+```powershell
+$SelectedHttpPort = 3000
+$SelectedWsPort = 3001
+$env:HTTP_PORT = "$SelectedHttpPort"
+$env:WS_PORT = "$SelectedWsPort"
+pnpm dev:backend
+```
+
+### Alternate ports (Bash / zsh)
 
 ```bash
-HTTP_PORT=3010 WS_PORT=3011 pnpm dev:backend
+SELECTED_HTTP_PORT=3010
+SELECTED_WS_PORT=3011
+HTTP_PORT=$SELECTED_HTTP_PORT WS_PORT=$SELECTED_WS_PORT pnpm dev:backend
 ```
 
 ### Alternate ports (PowerShell)
 
 ```powershell
-$env:HTTP_PORT = "3010"
-$env:WS_PORT = "3011"
+$SelectedHttpPort = 3010
+$SelectedWsPort = 3011
+$env:HTTP_PORT = "$SelectedHttpPort"
+$env:WS_PORT = "$SelectedWsPort"
 pnpm dev:backend
 ```
 
-### REST verification
+### REST verification (Bash / zsh)
 
 ```bash
-curl http://127.0.0.1:3000/health
-curl http://127.0.0.1:3000/pairs/meta
+curl http://127.0.0.1:$SELECTED_HTTP_PORT/health
+curl http://127.0.0.1:$SELECTED_HTTP_PORT/pairs/meta
+```
+
+### REST verification (PowerShell)
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:$SelectedHttpPort/health"
+Invoke-RestMethod "http://127.0.0.1:$SelectedHttpPort/pairs/meta"
 ```
 
 Do **not** terminate unrelated processes occupying default ports.
@@ -221,23 +266,45 @@ Do **not** terminate unrelated processes occupying default ports.
 
 - Exactly **one** usable emulator booted, verified with `adb devices`
 - `JAVA_HOME` points to JDK 17 for native build commands
-- Backend running and reachable from emulator host mapping
+- Backend running on the selected HTTP/WebSocket ports
+- `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_WS_URL` use the **same selected ports** recorded in section 8
 
-### Build and launch
-
-From repository root:
+### Build and launch (Bash / zsh)
 
 ```bash
 cd mobile
+export JAVA_HOME=<path-to-jdk-17>
+export EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:$SELECTED_HTTP_PORT
+export EXPO_PUBLIC_WS_URL=ws://10.0.2.2:$SELECTED_WS_PORT
 CI=1 EXPO_NO_GIT_STATUS=1 pnpm exec expo prebuild --clean --platform android
 CI=1 pnpm exec expo run:android --device <serial-or-avd> --variant debug
 ```
 
-Configure URLs before build when not relying on Android dev defaults:
+### Build and launch (PowerShell)
 
-```bash
-export EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000
-export EXPO_PUBLIC_WS_URL=ws://10.0.2.2:3001
+```powershell
+cd mobile
+
+$env:JAVA_HOME = "<path-to-jdk-17>"
+$env:CI = "1"
+$env:EXPO_NO_GIT_STATUS = "1"
+$env:EXPO_PUBLIC_API_BASE_URL = "http://10.0.2.2:$SelectedHttpPort"
+$env:EXPO_PUBLIC_WS_URL = "ws://10.0.2.2:$SelectedWsPort"
+
+pnpm exec expo prebuild --clean --platform android
+pnpm exec expo run:android --device <serial-or-avd> --variant debug
+```
+
+### Environment cleanup (PowerShell)
+
+```powershell
+Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+Remove-Item Env:CI -ErrorAction SilentlyContinue
+Remove-Item Env:EXPO_NO_GIT_STATUS -ErrorAction SilentlyContinue
+Remove-Item Env:EXPO_PUBLIC_API_BASE_URL -ErrorAction SilentlyContinue
+Remove-Item Env:EXPO_PUBLIC_WS_URL -ErrorAction SilentlyContinue
+Remove-Item Env:HTTP_PORT -ErrorAction SilentlyContinue
+Remove-Item Env:WS_PORT -ErrorAction SilentlyContinue
 ```
 
 ### Requirements
@@ -259,7 +326,7 @@ Verify and record timestamped observations or screenshots:
 | Check | Expected |
 | --- | --- |
 | LIVE state | Connection chip shows LIVE with backend healthy |
-| Five pairs | BTC, ETH, SOL, DOGE, XRP visible |
+| Five pairs | All five supported pairs are present in the watchlist; scroll when necessary |
 | Changing prices | Values update over ~10 seconds |
 | Search | Filtering works |
 | Clear search | Full list restored |
@@ -280,9 +347,9 @@ Controlled reconnect sequence:
 2. Stop **only** the task-owned backend (`Ctrl+C` or `kill` of that process).
 3. Observe mobile connection state.
 4. Verify last-known values remain visible.
-5. Restart backend on the **same ports** used in step 1.
-6. Verify backend `/health`.
-7. Verify backend WebSocket batches resume.
+5. Restart backend on the **same selected ports** recorded in section 8.
+6. Verify backend `/health` on `http://127.0.0.1:<selected-http-port>/health` (or `$SelectedHttpPort` in PowerShell).
+7. Verify backend WebSocket batches resume on `ws://127.0.0.1:<selected-ws-port>`.
 8. Wait through a bounded reconnect window of **60 seconds**.
 9. Record whether mobile returns to LIVE.
 10. Repeat at most **once** if the first attempt is ambiguous.
@@ -306,14 +373,30 @@ Only when the reviewer explicitly requests an APK build:
 
 1. Ensure `mobile/android/` exists via `expo prebuild`.
 2. Set `JAVA_HOME` to JDK 17.
-3. Build:
+3. Set `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_WS_URL` using the selected ports from section 8.
+4. Build with the validated Gradle task:
+
+**Bash / zsh:**
 
 ```bash
 cd mobile/android
+export JAVA_HOME=<path-to-jdk-17>
+export EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:$SELECTED_HTTP_PORT
+export EXPO_PUBLIC_WS_URL=ws://10.0.2.2:$SELECTED_WS_PORT
 ./gradlew :app:assembleRelease -x lint -x test --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
 ```
 
-4. Record:
+**PowerShell:**
+
+```powershell
+cd mobile/android
+$env:JAVA_HOME = "<path-to-jdk-17>"
+$env:EXPO_PUBLIC_API_BASE_URL = "http://10.0.2.2:$SelectedHttpPort"
+$env:EXPO_PUBLIC_WS_URL = "ws://10.0.2.2:$SelectedWsPort"
+.\gradlew :app:assembleRelease -x lint -x test --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
+```
+
+5. Record:
 
 | Field | Source |
 | --- | --- |
@@ -321,11 +404,22 @@ cd mobile/android
 | Package | `com.dinithagamage.pulsecrypto` |
 | ABI | `arm64-v8a` when using `-PreactNativeArchitectures=arm64-v8a` |
 | Variant | Gradle `release` |
-| Signing | Development/debug signing from generated native project |
 | Size | `stat` / `Get-Item` |
 | SHA-256 | `shasum -a 256` / `Get-FileHash` |
 
-Do **not** describe development signing as production Play Store signing.
+**SHA-256 (PowerShell):**
+
+```powershell
+Get-FileHash mobile/android/app/build/outputs/apk/release/app-release.apk -Algorithm SHA256
+```
+
+6. Inspect APK signing with available Android tooling (for example `apksigner verify --print-certs` or `keytool` against the APK signature) and report:
+
+- observed signing type
+- certificate identity
+- whether it is development/debug or production signing
+
+Inspect the APK signature and report the observed certificate. Do **not** classify it as production-signed unless the certificate and build process prove that claim.
 
 Do **not** inspect an unrelated pre-existing APK as substitute evidence.
 
