@@ -1,6 +1,6 @@
 # PulseCrypto
 
-PulseCrypto is a real-time cryptocurrency market viewer built as a Staff Engineer / Mobile Architect practical assignment. I designed it as a monorepo with a Node.js + TypeScript backend gateway, shared contracts, and a React Native mobile app validated on Android Emulator.
+PulseCrypto is a real-time cryptocurrency market viewer. I designed it as a monorepo with a Node.js + TypeScript backend gateway, shared contracts, and a React Native mobile app validated on Android Emulator.
 
 The system separates ingestion cadence, validated application state, and UI publication so sustained market updates remain bounded and responsive. I used AI-assisted engineering tools to accelerate implementation and review while retaining ownership of architecture, scope, quality gates, and final technical decisions.
 
